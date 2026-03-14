@@ -40,7 +40,6 @@ describe("nodeDefaults utilities", () => {
         "nanoBanana",
         "generateVideo",
         "llmGenerate",
-        "splitGrid",
         "glbViewer",
         "output",
       ];
@@ -158,21 +157,6 @@ describe("nodeDefaults utilities", () => {
       expect(data).toHaveProperty("model");
       expect(data).toHaveProperty("temperature");
       expect(data).toHaveProperty("maxTokens");
-      expect(data).toHaveProperty("status", "idle");
-      expect(data).toHaveProperty("error", null);
-    });
-
-    it("creates correct structure for splitGrid", () => {
-      const data = createDefaultNodeData("splitGrid");
-
-      expect(data).toHaveProperty("sourceImage", null);
-      expect(data).toHaveProperty("targetCount", 6);
-      expect(data).toHaveProperty("defaultPrompt", "");
-      expect(data).toHaveProperty("generateSettings");
-      expect(data).toHaveProperty("childNodeIds");
-      expect(data).toHaveProperty("gridRows", 2);
-      expect(data).toHaveProperty("gridCols", 3);
-      expect(data).toHaveProperty("isConfigured", false);
       expect(data).toHaveProperty("status", "idle");
       expect(data).toHaveProperty("error", null);
     });

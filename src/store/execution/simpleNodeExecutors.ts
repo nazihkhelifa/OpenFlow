@@ -2,7 +2,7 @@
  * Simple Node Executors
  *
  * Executors for node types that don't call external APIs:
- * annotation, prompt, output, outputGallery, imageCompare.
+ * annotation, prompt, imageCompare.
  *
  * These are used by executeWorkflow (and some by regenerateNode).
  */
@@ -10,8 +10,6 @@
 import type {
   AnnotationNodeData,
   PromptNodeData,
-  OutputNodeData,
-  OutputGalleryNodeData,
   WorkflowNode,
 } from "@/types";
 import type { NodeExecutionContext } from "./types";
@@ -154,132 +152,6 @@ export async function executePrompt(ctx: NodeExecutionContext): Promise<void> {
     const message = error instanceof Error ? error.message : "LLM generation failed";
     updateNodeData(node.id, { status: "error", error: message });
     throw error;
-  }
-}
-
-/**
- * Output node: displays final image/video result.
- */
-export async function executeOutput(ctx: NodeExecutionContext): Promise<void> {
-  const { node, getConnectedInputs, updateNodeData, saveDirectoryPath } = ctx;
-  const { images, videos, audio } = getConnectedInputs(node.id);
-
-  // Check audio array first
-  if (audio.length > 0) {
-    const audioContent = audio[0];
-    updateNodeData(node.id, {
-      audio: audioContent,
-      image: null,
-      video: null,
-      contentType: "audio",
-    });
-
-    // Save to /outputs directory if we have a project path
-    if (saveDirectoryPath) {
-      const outputNodeData = node.data as OutputNodeData;
-      const outputsPath = `${saveDirectoryPath}/outputs`;
-
-      fetch("/api/save-generation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          directoryPath: outputsPath,
-          audio: audioContent,
-          customFilename: outputNodeData.outputFilename || undefined,
-          createDirectory: true,
-        }),
-      }).catch((err) => {
-        console.error("Failed to save output:", err);
-      });
-    }
-    return;
-  }
-
-  // Check videos array (typed data from source)
-  if (videos.length > 0) {
-    const videoContent = videos[0];
-    updateNodeData(node.id, {
-      image: videoContent,
-      video: videoContent,
-      contentType: "video",
-    });
-
-    // Save to /outputs directory if we have a project path
-    if (saveDirectoryPath) {
-      const outputNodeData = node.data as OutputNodeData;
-      const outputsPath = `${saveDirectoryPath}/outputs`;
-
-      fetch("/api/save-generation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          directoryPath: outputsPath,
-          video: videoContent,
-          customFilename: outputNodeData.outputFilename || undefined,
-          createDirectory: true,
-        }),
-      }).catch((err) => {
-        console.error("Failed to save output:", err);
-      });
-    }
-  } else if (images.length > 0) {
-    const content = images[0];
-    // Fallback pattern matching for edge cases (video data that ended up in images array)
-    const isVideoContent =
-      content.startsWith("data:video/") ||
-      content.includes(".mp4") ||
-      content.includes(".webm") ||
-      content.includes("fal.media");
-
-    if (isVideoContent) {
-      updateNodeData(node.id, {
-        image: content,
-        video: content,
-        contentType: "video",
-      });
-    } else {
-      updateNodeData(node.id, {
-        image: content,
-        video: null,
-        contentType: "image",
-      });
-    }
-
-    // Save to /outputs directory if we have a project path
-    if (saveDirectoryPath) {
-      const outputNodeData = node.data as OutputNodeData;
-      const outputsPath = `${saveDirectoryPath}/outputs`;
-
-      fetch("/api/save-generation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          directoryPath: outputsPath,
-          image: isVideoContent ? undefined : content,
-          video: isVideoContent ? content : undefined,
-          customFilename: outputNodeData.outputFilename || undefined,
-          createDirectory: true,
-        }),
-      }).catch((err) => {
-        console.error("Failed to save output:", err);
-      });
-    }
-  }
-}
-
-/**
- * OutputGallery node: accumulates images from upstream nodes.
- */
-export async function executeOutputGallery(ctx: NodeExecutionContext): Promise<void> {
-  const { node, getConnectedInputs, updateNodeData } = ctx;
-  const { images } = getConnectedInputs(node.id);
-  const galleryData = node.data as OutputGalleryNodeData;
-  const existing = new Set(galleryData.images || []);
-  const newImages = images.filter((img) => !existing.has(img));
-  if (newImages.length > 0) {
-    updateNodeData(node.id, {
-      images: [...newImages, ...(galleryData.images || [])],
-    });
   }
 }
 

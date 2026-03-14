@@ -14,7 +14,6 @@ import {
   WorkflowEdge,
   NodeType,
   NanoBananaNodeData,
-  OutputGalleryNodeData,
   WorkflowNodeData,
   ImageHistoryItem,
   NodeGroup,
@@ -65,14 +64,11 @@ import { computeDimmedNodes } from "./utils/dimmingUtils";
 import {
   executeAnnotation,
   executePrompt,
-  executeOutput,
-  executeOutputGallery,
   executeImageCompare,
   executeNanoBanana,
   executeGenerateVideo,
   executeGenerate3D,
   executeGenerateAudio,
-  executeSplitGrid,
   executeVideoStitch,
   executeEaseCurve,
   executeVideoTrim,
@@ -952,16 +948,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
       pendingImageSyncs.set(key, promise);
       promise.finally(() => pendingImageSyncs.delete(key));
     },
-    appendOutputGalleryImage: (targetId: string, image: string) => {
-      set((state) => ({
-        nodes: state.nodes.map((n) =>
-          n.id === targetId && n.type === "outputGallery"
-            ? { ...n, data: { ...n.data, images: [image, ...((n.data as OutputGalleryNodeData).images || [])] } as WorkflowNodeData }
-            : n
-        ) as WorkflowNode[],
-        hasUnsavedChanges: true,
-      }));
-    },
     get: get as () => unknown,
   }),
 
@@ -1096,15 +1082,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
             break;
           case "generateAudio":
             await executeGenerateAudio(executionCtx);
-            break;
-          case "splitGrid":
-            await executeSplitGrid(executionCtx);
-            break;
-          case "output":
-            await executeOutput(executionCtx);
-            break;
-          case "outputGallery":
-            await executeOutputGallery(executionCtx);
             break;
           case "imageCompare":
             await executeImageCompare(executionCtx);
@@ -1266,8 +1243,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
         await executeGenerate3D(executionCtx, regenOptions);
       } else if (node.type === "generateAudio") {
         await executeGenerateAudio(executionCtx, regenOptions);
-      } else if (node.type === "splitGrid") {
-        await executeSplitGrid(executionCtx);
       } else if (node.type === "videoStitch") {
         await executeVideoStitch(executionCtx);
         set({ isRunning: false, currentNodeIds: [] });
@@ -1288,11 +1263,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
         set({ isRunning: false, currentNodeIds: [] });
         await logger.endSession();
         return;
-      } else if (node.type === "output") {
-        await executeOutput(executionCtx);
-        set({ isRunning: false, currentNodeIds: [] });
-        await logger.endSession();
-        return;
       }
 
       // After regeneration, execute directly connected downstream consumer nodes
@@ -1306,12 +1276,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
         switch (targetNode.type) {
           case "glbViewer":
             await executeGlbViewer(targetCtx);
-            break;
-          case "output":
-            await executeOutput(targetCtx);
-            break;
-          case "outputGallery":
-            await executeOutputGallery(targetCtx);
             break;
           case "imageCompare":
             await executeImageCompare(targetCtx);
@@ -1414,15 +1378,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
         case "generateAudio":
           await executeGenerateAudio(executionCtx, regenOptions);
           break;
-        case "splitGrid":
-          await executeSplitGrid(executionCtx);
-          break;
-        case "output":
-          await executeOutput(executionCtx);
-          break;
-        case "outputGallery":
-          await executeOutputGallery(executionCtx);
-          break;
         case "imageCompare":
           await executeImageCompare(executionCtx);
           break;
@@ -1519,14 +1474,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
             switch (targetNode.type) {
               case "glbViewer":
                 await executeGlbViewer(targetCtx);
-                propagated.add(edge.target);
-                break;
-              case "output":
-                await executeOutput(targetCtx);
-                propagated.add(edge.target);
-                break;
-              case "outputGallery":
-                await executeOutputGallery(targetCtx);
                 propagated.add(edge.target);
                 break;
               case "imageCompare":

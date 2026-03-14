@@ -11,8 +11,6 @@ export type { NodeExecutionContext, NodeExecutor } from "./types";
 export {
   executeAnnotation,
   executePrompt,
-  executeOutput,
-  executeOutputGallery,
   executeImageCompare,
   executeGlbViewer,
   executeRouter,
@@ -31,8 +29,6 @@ export type { Generate3DOptions } from "./generate3dExecutor";
 
 export { executeGenerateAudio } from "./generateAudioExecutor";
 export type { GenerateAudioOptions } from "./generateAudioExecutor";
-
-export { executeSplitGrid } from "./splitGridExecutor";
 
 export {
   executeVideoStitch,

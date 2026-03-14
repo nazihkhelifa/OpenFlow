@@ -360,16 +360,6 @@ export function validateWorkflowPure(
       }
     });
 
-  // Check output nodes have image input
-  nodes
-    .filter((n) => n.type === "output")
-    .forEach((node) => {
-      const imageConnected = edges.some((e) => e.target === node.id);
-      if (!imageConnected) {
-        errors.push(`Output node "${node.id}" missing image input`);
-      }
-    });
-
   return { valid: errors.length === 0, errors };
 }
 

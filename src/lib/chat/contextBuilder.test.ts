@@ -228,43 +228,6 @@ describe("stripBinaryData", () => {
     });
   });
 
-  describe("splitGrid nodes", () => {
-    it("strips sourceImage, preserves settings", () => {
-      const node = createTestNode("split-1", "splitGrid", {
-        sourceImage: FAKE_BASE64_PNG,
-        targetCount: 4,
-        defaultPrompt: "enhance",
-        generateSettings: {
-          aspectRatio: "1:1",
-          resolution: "1K",
-          model: "nano-banana",
-          useGoogleSearch: false,
-          useImageSearch: false,
-        },
-        childNodeIds: [],
-        gridRows: 2,
-        gridCols: 2,
-        isConfigured: true,
-        status: "idle",
-        error: null,
-      });
-
-      const [stripped] = stripBinaryData([node]);
-      const json = JSON.stringify(stripped);
-
-      expect(json).not.toContain("data:image");
-      expect(stripped.data.targetCount).toBe(4);
-      expect(stripped.data.generateSettings).toEqual({
-        aspectRatio: "1:1",
-        resolution: "1K",
-        model: "nano-banana",
-        useGoogleSearch: false,
-        useImageSearch: false,
-      });
-      expect(stripped.data.sourceImage).toMatch(/\[image:.*KB\]/);
-    });
-  });
-
   describe("output nodes", () => {
     it("strips image and video fields", () => {
       const node = createTestNode("out-1", "output", {
@@ -369,18 +332,6 @@ describe("stripBinaryData", () => {
           temperature: 0.5,
           maxTokens: 500,
           status: "complete",
-          error: null,
-        }),
-        createTestNode("split-1", "splitGrid", {
-          sourceImage: FAKE_BASE64_PNG,
-          targetCount: 4,
-          defaultPrompt: "test",
-          generateSettings: { aspectRatio: "1:1", resolution: "1K", model: "nano-banana", useGoogleSearch: false, useImageSearch: false },
-          childNodeIds: [],
-          gridRows: 2,
-          gridCols: 2,
-          isConfigured: true,
-          status: "idle",
           error: null,
         }),
         createTestNode("out-1", "output", {

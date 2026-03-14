@@ -29,7 +29,6 @@ export const ALL_NODES_CATEGORIES: {
     label: "Process",
     nodes: [
       { type: "annotation", label: "Layer Editor" },
-      { type: "splitGrid", label: "Split Grid" },
       { type: "videoStitch", label: "Video Stitch" },
       { type: "videoTrim", label: "Video Trim" },
       { type: "easeCurve", label: "Ease Curve" },
@@ -43,13 +42,6 @@ export const ALL_NODES_CATEGORIES: {
       { type: "router", label: "Router" },
       { type: "switch", label: "Switch" },
       { type: "conditionalSwitch", label: "Conditional Switch" },
-    ],
-  },
-  {
-    label: "Output",
-    nodes: [
-      { type: "output", label: "Output" },
-      { type: "outputGallery", label: "Output Gallery" },
     ],
   },
 ];

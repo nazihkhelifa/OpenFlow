@@ -36,13 +36,7 @@ Purpose: AI image generation (REQUIRES both image AND text inputs)
 - Use when: Generating or transforming images with AI
 - Models: "nano-banana" (fast), "nano-banana-pro" (high quality)
 
-### 5. splitGrid
-Purpose: Split a grid image into cells for parallel processing
-- Inputs: "image" handle
-- Outputs: "reference" handle (creates child imageInput nodes)
-- Use when: Processing contact sheets or generating variations
-
-### 6. output
+### 5. output
 Purpose: Display final generated images
 - Inputs: "image" handle
 - Use when: Marking the final result(s) of a workflow

@@ -8,7 +8,6 @@ import type {
   ImageInputNodeData,
   AnnotationNodeData,
   NanoBananaNodeData,
-  OutputNodeData,
 } from "@/types";
 
 const STACK_GAP = 20;
@@ -179,9 +178,6 @@ export function MultiSelectToolbar() {
           break;
         case "generateImage":
           imageData = (node.data as NanoBananaNodeData).outputImage;
-          break;
-        case "output":
-          imageData = (node.data as OutputNodeData).image;
           break;
       }
 

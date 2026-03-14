@@ -11,9 +11,6 @@ import {
   GenerateVideoNodeData,
   Generate3DNodeData,
   GenerateAudioNodeData,
-  SplitGridNodeData,
-  OutputNodeData,
-  OutputGalleryNodeData,
   ImageCompareNodeData,
   EaseCurveNodeData,
   VideoTrimNodeData,
@@ -45,9 +42,6 @@ export const defaultNodeDimensions: Record<NodeType, { width: number; height: nu
   generateVideo: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   generate3d: { width: 300, height: 300 },
   generateAudio: { width: 300, height: 280 },
-  splitGrid: { width: 300, height: 320 },
-  output: { width: SQUARE_SIZE, height: SQUARE_SIZE },
-  outputGallery: { width: 320, height: 360 },
   imageCompare: { width: 400, height: 360 },
   videoStitch: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   easeCurve: { width: SQUARE_SIZE, height: SQUARE_SIZE },
@@ -224,34 +218,6 @@ export const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         format: null,
       } as GenerateAudioNodeData;
     }
-    case "splitGrid":
-      return {
-        sourceImage: null,
-        targetCount: 6,
-        defaultPrompt: "",
-        generateSettings: {
-          aspectRatio: "1:1",
-          resolution: "1K",
-          model: "nano-banana-pro",
-          useGoogleSearch: false,
-          useImageSearch: false,
-        },
-        childNodeIds: [],
-        gridRows: 2,
-        gridCols: 3,
-        isConfigured: false,
-        status: "idle",
-        error: null,
-      } as SplitGridNodeData;
-    case "output":
-      return {
-        image: null,
-        outputFilename: "",
-      } as OutputNodeData;
-    case "outputGallery":
-      return {
-        images: [],
-      } as OutputGalleryNodeData;
     case "imageCompare":
       return {
         imageA: null,

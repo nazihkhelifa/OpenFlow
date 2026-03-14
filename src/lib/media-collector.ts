@@ -78,16 +78,6 @@ export function collectMediaItems(nodes: Node[]): MediaItem[] {
       if (imageB && isDisplayableUrl(imageB)) mediaItems.push({ url: imageB, type: "image", nodeId: node.id });
     }
 
-    // OutputGalleryNode: images array
-    if (node.type === "outputGallery") {
-      const images = data.images as string[] | undefined;
-      if (Array.isArray(images)) {
-        images.forEach((url) => {
-          if (url && isDisplayableUrl(url)) mediaItems.push({ url, type: "image", nodeId: node.id });
-        });
-      }
-    }
-
     // VideoStitchNode: outputVideo
     if (node.type === "videoStitch") {
       const outputVideo = data.outputVideo as string | null | undefined;
@@ -120,21 +110,6 @@ export function collectMediaItems(nodes: Node[]): MediaItem[] {
       }
     }
 
-    // OutputNode: image, video
-    if (node.type === "output") {
-      const image = data.image as string | null | undefined;
-      const video = data.video as string | null | undefined;
-      if (image && isDisplayableUrl(image)) mediaItems.push({ url: image, type: "image", nodeId: node.id });
-      if (video && isDisplayableUrl(video)) mediaItems.push({ url: video, type: "video", nodeId: node.id });
-    }
-
-    // SplitGridNode: sourceImage (only actual URL, not ref)
-    if (node.type === "splitGrid") {
-      const sourceImage = data.sourceImage as string | null | undefined;
-      if (sourceImage && isDisplayableUrl(sourceImage)) {
-        mediaItems.push({ url: sourceImage, type: "image", nodeId: node.id });
-      }
-    }
   });
 
   return mediaItems;

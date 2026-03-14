@@ -69,42 +69,7 @@ Purpose: AI image generation using Gemini (REQUIRES both image AND text inputs).
     "customTitle": "Generation step name"
   }
 
-### 5. splitGrid
-Purpose: Split a grid/contact sheet image into individual cells for parallel processing. Use this when the user wants to generate a grid of images and then process each cell separately.
-- Inputs: "image" handle (left side)
-- Outputs: "reference" handle (connects to child imageInput nodes)
-- IMPORTANT: When using splitGrid, you MUST also create the child nodes for each grid cell:
-  - For each cell: 1 imageInput + 1 prompt + 1 nanoBanana
-  - For a 2x2 grid (4 cells): create 4 imageInputs, 4 prompts, 4 nanoBananas
-  - Connect splitGrid → each imageInput via "reference" handles
-  - Connect each imageInput → its nanoBanana via "image" handles
-  - Connect each prompt → its nanoBanana via "text" handles
-- Data structure:
-  {
-    "sourceImage": null,
-    "targetCount": 4,
-    "gridRows": 2,
-    "gridCols": 2,
-    "defaultPrompt": "Enhance this frame...",
-    "generateSettings": {
-      "aspectRatio": "2:3",
-      "resolution": "2K",
-      "model": "nano-banana-pro",
-      "useGoogleSearch": false
-    },
-    "childNodeIds": [
-      { "imageInput": "imageInput-10", "prompt": "prompt-10", "generateImage": "nanoBanana-10" },
-      { "imageInput": "imageInput-11", "prompt": "prompt-11", "generateImage": "nanoBanana-11" },
-      { "imageInput": "imageInput-12", "prompt": "prompt-12", "generateImage": "nanoBanana-12" },
-      { "imageInput": "imageInput-13", "prompt": "prompt-13", "generateImage": "nanoBanana-13" }
-    ],
-    "isConfigured": true,
-    "status": "idle",
-    "error": null,
-    "customTitle": "Split Grid"
-  }
-
-### 6. output
+### 5. output
 Purpose: Display final generated images (optional - not required)
 - Inputs: "image" handle (left side)
 - Data structure:
@@ -183,30 +148,7 @@ Edges connect nodes together. Every edge MUST have these fields:
 }
 \`\`\`
 
-**Connecting nanoBanana output to splitGrid (for splitting a grid image):**
-\`\`\`json
-{
-  "id": "edge-nanoBanana-1-splitGrid-1-image-image",
-  "source": "nanoBanana-1",
-  "sourceHandle": "image",
-  "target": "splitGrid-1",
-  "targetHandle": "image"
-}
-\`\`\`
-
-**Connecting splitGrid to its child imageInput nodes (reference edges):**
-\`\`\`json
-{
-  "id": "edge-splitGrid-1-imageInput-10-reference-reference",
-  "source": "splitGrid-1",
-  "sourceHandle": "reference",
-  "target": "imageInput-10",
-  "targetHandle": "reference",
-  "type": "reference"
-}
-\`\`\`
-
-**Connecting child nodes within a splitGrid cell (imageInput + prompt → nanoBanana):**
+**Connecting imageInput to nanoBanana within a workflow (imageInput + prompt → nanoBanana):**
 \`\`\`json
 {
   "id": "edge-imageInput-10-nanoBanana-10-image-image",
@@ -235,7 +177,6 @@ Edges connect nodes together. Every edge MUST have these fields:
   - annotation: { width: 300, height: 280 }
   - prompt: { width: 329, height: 371 }
   - nanoBanana: { width: 300, height: 300 }
-  - splitGrid: { width: 300, height: 320 }
   - output: { width: 320, height: 320 }
 
 ## Groups (Optional - for organizing complex workflows)
@@ -373,7 +314,6 @@ Notice how:
 3. ✓ Handle types match: image→image, text→text, reference→reference
 4. ✓ Nodes have customTitle fields describing their purpose
 5. ✓ Layout flows left-to-right with proper spacing
-6. ✓ If using splitGrid: child nodes are created (imageInput + prompt + nanoBanana per cell), childNodeIds array is populated, and reference edges connect splitGrid to each child imageInput
 
 Generate a practical, well-organized workflow for: "${description}"
 
@@ -386,7 +326,7 @@ OUTPUT ONLY THE JSON:`;
 export function buildSimplePrompt(description: string): string {
   return `Create a Openflows workflow JSON for: "${description}"
 
-Node types: imageInput (output: image), prompt (output: text, can run LLM generation), nanoBanana (inputs: image+text, output: image), annotation (input: image, output: image), splitGrid (input: image, creates child nodes for each cell), output (input: image).
+Node types: imageInput (output: image), prompt (output: text, can run LLM generation), nanoBanana (inputs: image+text, output: image), annotation (input: image, output: image), output (input: image).
 
 Rules:
 - nanoBanana NEEDS both image and text inputs - create edges for BOTH

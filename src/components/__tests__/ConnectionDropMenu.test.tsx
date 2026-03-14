@@ -141,15 +141,6 @@ describe("ConnectionDropMenu", () => {
       expect(mockOnSelect).toHaveBeenCalledWith({ type: "annotation", isAction: false });
     });
 
-    it("should call onSelect with isAction true for action items", () => {
-      render(<ConnectionDropMenu {...defaultProps} handleType="image" connectionType="source" />);
-
-      const splitNowButton = screen.getByText("Split Grid Now");
-      fireEvent.click(splitNowButton);
-
-      expect(mockOnSelect).toHaveBeenCalledWith({ type: "splitGridImmediate", isAction: true });
-    });
-
     it("should call onSelect with nanoBanana type for Generate Image", () => {
       render(<ConnectionDropMenu {...defaultProps} handleType="text" connectionType="source" />);
 

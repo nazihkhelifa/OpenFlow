@@ -6,8 +6,6 @@ import type {
   PromptNodeData,
   NanoBananaNodeData,
   GenerateVideoNodeData,
-  SplitGridNodeData,
-  OutputNodeData,
 } from "@/types";
 
 /**
@@ -18,8 +16,6 @@ const BINARY_FIELDS_BY_TYPE: Record<string, string[]> = {
   annotation: ["sourceImage", "outputImage"],
   nanoBanana: ["inputImages", "outputImage"],
   generateVideo: ["inputImages", "outputVideo"],
-  splitGrid: ["sourceImage"],
-  output: ["image", "video"],
   prompt: ["inputImages"],
 };
 
@@ -245,7 +241,6 @@ function generateNodeTitle(type: string): string {
     array: "Array",
     nanoBanana: "Generate Image",
     generateVideo: "Generate Video",
-    splitGrid: "Split Grid",
     output: "Output",
   };
   return titles[type] || type;

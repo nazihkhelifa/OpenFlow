@@ -10,15 +10,12 @@ import type { NodeExecutionContext } from "./types";
 import {
   executeAnnotation,
   executePrompt,
-  executeOutput,
-  executeOutputGallery,
   executeImageCompare,
   executeGlbViewer,
 } from "./simpleNodeExecutors";
 import { executeNanoBanana } from "./nanoBananaExecutor";
 import { executeGenerateVideo } from "./generateVideoExecutor";
 import { executeGenerate3D } from "./generate3dExecutor";
-import { executeSplitGrid } from "./splitGridExecutor";
 import { executeVideoStitch, executeEaseCurve, executeVideoTrim, executeVideoFrameGrab } from "./videoProcessingExecutors";
 import { executeGenerateAudio } from "./generateAudioExecutor";
 
@@ -64,15 +61,6 @@ export async function executeNode(
       break;
     case "generate3d":
       await executeGenerate3D(ctx, regenOpts);
-      break;
-    case "splitGrid":
-      await executeSplitGrid(ctx);
-      break;
-    case "output":
-      await executeOutput(ctx);
-      break;
-    case "outputGallery":
-      await executeOutputGallery(ctx);
       break;
     case "imageCompare":
       await executeImageCompare(ctx);

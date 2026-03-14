@@ -25,7 +25,6 @@ export { GenerateAudioNode } from "./generate/GenerateAudioNode";
 
 // Process nodes
 export { AnnotationNode } from "./process/AnnotationNode";
-export { SplitGridNode } from "./process/SplitGridNode";
 export { ImageCompareNode } from "./process/ImageCompareNode";
 
 // Video nodes
@@ -33,10 +32,6 @@ export { VideoStitchNode } from "./video/VideoStitchNode";
 export { EaseCurveNode } from "./video/EaseCurveNode";
 export { VideoTrimNode } from "./video/VideoTrimNode";
 export { VideoFrameGrabNode } from "./video/VideoFrameGrabNode";
-
-// Output nodes
-export { OutputNode } from "./output/OutputNode";
-export { OutputGalleryNode } from "./output/OutputGalleryNode";
 
 // Route nodes
 export { RouterNode } from "./route/RouterNode";

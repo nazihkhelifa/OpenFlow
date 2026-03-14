@@ -2,8 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import {
   executeAnnotation,
   executePrompt,
-  executeOutput,
-  executeOutputGallery,
   executeImageCompare,
   executeGlbViewer,
 } from "../simpleNodeExecutors";
@@ -34,7 +32,6 @@ function makeCtx(
     generationsPath: null,
     saveDirectoryPath: null,
     trackSaveGeneration: vi.fn(),
-    appendOutputGalleryImage: vi.fn(),
     get: vi.fn(),
     ...overrides,
   };
@@ -211,156 +208,6 @@ describe("executePrompt", () => {
     });
 
     await expect(executePrompt(ctx)).rejects.toThrow("fail");
-  });
-});
-
-describe("executeOutput", () => {
-  it("should set video content from videos array", async () => {
-    const node = makeNode("out", "output", {});
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: [],
-        videos: ["data:video/mp4;base64,abc"],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutput(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("out", {
-      image: "data:video/mp4;base64,abc",
-      video: "data:video/mp4;base64,abc",
-      contentType: "video",
-    });
-  });
-
-  it("should set image content from images array", async () => {
-    const node = makeNode("out", "output", {});
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["data:image/png;base64,img"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutput(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("out", {
-      image: "data:image/png;base64,img",
-      video: null,
-      contentType: "image",
-    });
-  });
-
-  it("should detect video URLs in images array", async () => {
-    const node = makeNode("out", "output", {});
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["data:video/mp4;base64,vid"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutput(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("out", {
-      image: "data:video/mp4;base64,vid",
-      video: "data:video/mp4;base64,vid",
-      contentType: "video",
-    });
-  });
-
-  it("should detect fal.media URLs as video", async () => {
-    const node = makeNode("out", "output", {});
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["https://fal.media/files/abc123.mp4"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutput(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("out", {
-      image: "https://fal.media/files/abc123.mp4",
-      video: "https://fal.media/files/abc123.mp4",
-      contentType: "video",
-    });
-  });
-});
-
-describe("executeOutputGallery", () => {
-  it("should add new images to gallery", async () => {
-    const node = makeNode("gal", "outputGallery", { images: ["existing.png"] });
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["new1.png", "new2.png"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutputGallery(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("gal", {
-      images: ["new1.png", "new2.png", "existing.png"],
-    });
-  });
-
-  it("should not add duplicate images", async () => {
-    const node = makeNode("gal", "outputGallery", { images: ["existing.png"] });
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["existing.png", "new.png"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutputGallery(ctx);
-
-    expect(ctx.updateNodeData).toHaveBeenCalledWith("gal", {
-      images: ["new.png", "existing.png"],
-    });
-  });
-
-  it("should not update when no new images", async () => {
-    const node = makeNode("gal", "outputGallery", { images: ["existing.png"] });
-    const ctx = makeCtx(node, {
-      getConnectedInputs: vi.fn().mockReturnValue({
-        images: ["existing.png"],
-        videos: [],
-        audio: [],
-        text: null,
-        dynamicInputs: {},
-        easeCurve: null,
-      }),
-    });
-
-    await executeOutputGallery(ctx);
-
-    expect(ctx.updateNodeData).not.toHaveBeenCalled();
   });
 });
 

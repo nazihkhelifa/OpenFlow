@@ -22,9 +22,6 @@ const VALID_NODE_TYPES: NodeType[] = [
   "generateVideo",
   "generate3d",
   "generateAudio",
-  "splitGrid",
-  "output",
-  "outputGallery",
   "imageCompare",
   "videoStitch",
   "easeCurve",
@@ -49,9 +46,6 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { width: number; height: number }> = 
   generateVideo: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   generate3d: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   generateAudio: { width: 300, height: 280 },
-  splitGrid: { width: 300, height: 320 },
-  output: { width: SQUARE_SIZE, height: SQUARE_SIZE },
-  outputGallery: { width: 320, height: 360 },
   imageCompare: { width: 400, height: 360 },
   videoStitch: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   easeCurve: { width: SQUARE_SIZE, height: SQUARE_SIZE },
@@ -310,33 +304,6 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         selectedAudioHistoryIndex: 0,
         duration: null,
         format: null,
-      };
-    case "splitGrid":
-      return {
-        sourceImage: null,
-        targetCount: 6,
-        defaultPrompt: "",
-        generateSettings: {
-          aspectRatio: "1:1",
-          resolution: "1K",
-          model: "nano-banana-pro",
-          useGoogleSearch: false,
-          useImageSearch: false,
-        },
-        childNodeIds: [],
-        gridRows: 2,
-        gridCols: 3,
-        isConfigured: false,
-        status: "idle",
-        error: null,
-      };
-    case "output":
-      return {
-        image: null,
-      };
-    case "outputGallery":
-      return {
-        images: [],
       };
     case "imageCompare":
       return {

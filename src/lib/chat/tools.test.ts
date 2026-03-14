@@ -28,7 +28,6 @@ vi.mock("@/store/utils/nodeDefaults", () => ({
     prompt: { width: 329, height: 371 },
     nanoBanana: { width: 300, height: 300 },
     generateVideo: { width: 300, height: 300 },
-    splitGrid: { width: 300, height: 320 },
     output: { width: 320, height: 320 },
     outputGallery: { width: 320, height: 360 },
     imageCompare: { width: 400, height: 360 },

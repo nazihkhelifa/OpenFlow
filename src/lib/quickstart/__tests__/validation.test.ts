@@ -157,7 +157,6 @@ describe("validation", () => {
           "annotation",
           "prompt",
           "generateImage",
-          "splitGrid",
           "output",
         ];
         validTypes.forEach((type) => {

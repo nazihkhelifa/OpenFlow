@@ -46,7 +46,6 @@ export interface NodeExecutionContext {
   generationsPath: string | null;
   saveDirectoryPath: string | null;
   trackSaveGeneration: (key: string, promise: Promise<void>) => void;
-  appendOutputGalleryImage: (targetId: string, image: string) => void;
   get: () => unknown;
 }
 

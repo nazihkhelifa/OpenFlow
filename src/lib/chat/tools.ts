@@ -16,8 +16,6 @@ const VALID_NODE_TYPES: NodeType[] = [
   "generateImage",
   "generateVideo",
   "generate3d",
-  "splitGrid",
-  "output",
 ];
 
 /**
@@ -61,17 +59,8 @@ The Prompt node can run LLM generation for expanding prompts or analyzing images
 - **Parameters** (collapsible): Temperature slider (0-2), Max Tokens slider (256-16384)
 - Takes **text** input (required), optional **image** input
 
-### Split Grid
-Splits one image into a grid for parallel generation. Click "Configure" to open settings:
-- **Number of Images**: Choose 4, 6, 8, 9, or 10 (shows grid preview)
-- **Default Prompt**: Applied to all generated images (each can be edited individually after)
-- Automatically creates child Image Input + Prompt + Generate nodes for each grid cell
-
 ### Annotation
 Draw or mark up images using a canvas editor (Konva). Takes an image in, outputs the annotated image.
-
-### Output
-Displays the final generated image or video. Connect any image or video output here to see results.
 
 ## How Workflows Work
 - Nodes are placed on a canvas and connected by dragging between handles (colored dots)
@@ -166,7 +155,7 @@ export function createChatTools(nodeIds: string[]) {
   return {
     answerQuestion: tool({
       description:
-        'Answer questions about how to use Openflows. Use this for informational questions like "how do I change resolution?" or "what does the Split Grid node do?". Does NOT modify the workflow.',
+        'Answer questions about how to use Openflows. Use this for informational questions like "how do I change resolution?". Does NOT modify the workflow.',
       inputSchema: z.object({
         answer: z
           .string()
@@ -204,7 +193,7 @@ export function createChatTools(nodeIds: string[]) {
                 .string()
                 .optional()
                 .describe(
-                  "Node type for addNode. Valid: imageInput, annotation, prompt, nanoBanana, generateVideo, generate3d, splitGrid, output"
+                  "Node type for addNode. Valid: imageInput, annotation, prompt, nanoBanana, generateVideo, generate3d"
                 ),
               nodeId: z
                 .string()

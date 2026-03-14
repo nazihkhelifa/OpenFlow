@@ -9,7 +9,7 @@ import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
 import { ProviderBadge } from "./ProviderBadge";
 
 // Run button is now inside each runnable node (bottom-right), not in the header
-const EXPANDABLE_TYPES = new Set(['prompt', 'splitGrid', 'annotation']);
+const EXPANDABLE_TYPES = new Set(['prompt', 'annotation']);
 
 interface FloatingNodeHeaderProps {
   id: string;

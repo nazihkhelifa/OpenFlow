@@ -30,9 +30,6 @@ import {
   GenerateVideoNode,
   Generate3DNode,
   GenerateAudioNode,
-  SplitGridNode,
-  OutputNode,
-  OutputGalleryNode,
   ImageCompareNode,
   VideoStitchNode,
   EaseCurveNode,
@@ -56,7 +53,6 @@ import { NodeType, NanoBananaNodeData, HandleType, AnnotationNodeData } from "@/
 import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
 import { FloatingNodeHeader } from "./nodes/shared/FloatingNodeHeader";
 import { ControlPanel } from "./nodes/shared/ControlPanel";
-import { detectAndSplitGrid } from "@/utils/gridSplitter";
 import { logger } from "@/utils/logger";
 import { ProjectSetupModal } from "./ProjectSetupModal";
 import { ChatPanel } from "./ChatPanel";
@@ -64,7 +60,6 @@ import { EditOperation } from "@/lib/chat/editOperations";
 import { stripBinaryData } from "@/lib/chat/contextBuilder";
 import { PromptEditorModal } from "./modals/PromptEditorModal";
 import { AnnotationModal } from "./AnnotationModal";
-import { SplitGridSettingsModal } from "./SplitGridSettingsModal";
 import { createPortal } from "react-dom";
 import { useAnnotationStore } from "@/store/annotationStore";
 
@@ -79,9 +74,6 @@ const nodeTypes: NodeTypes = {
   generateVideo: GenerateVideoNode,
   generate3d: Generate3DNode,
   generateAudio: GenerateAudioNode,
-  splitGrid: SplitGridNode,
-  output: OutputNode,
-  outputGallery: OutputGalleryNode,
   imageCompare: ImageCompareNode,
   videoStitch: VideoStitchNode,
   easeCurve: EaseCurveNode,
@@ -144,12 +136,6 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
       return { inputs: ["image", "text"], outputs: ["3d"] };
     case "generateAudio":
       return { inputs: ["text"], outputs: ["audio"] };
-    case "splitGrid":
-      return { inputs: ["image"], outputs: ["reference"] };
-    case "output":
-      return { inputs: ["image", "video", "audio"], outputs: [] };
-    case "outputGallery":
-      return { inputs: ["image"], outputs: [] };
     case "imageCompare":
       return { inputs: ["image"], outputs: [] };
     case "videoStitch":
@@ -288,7 +274,6 @@ export function WorkflowCanvas() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropType, setDropType] = useState<"image" | "audio" | "workflow" | "node" | null>(null);
   const [connectionDrop, setConnectionDrop] = useState<ConnectionDropState | null>(null);
-  const [isSplitting, setIsSplitting] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isBuildingWorkflow, setIsBuildingWorkflow] = useState(false);
   const [showNewProjectSetup, setShowNewProjectSetup] = useState(false);
@@ -348,9 +333,6 @@ export function WorkflowCanvas() {
     generateVideo: 'Generate Video',
     generate3d: 'Generate 3D',
     generateAudio: 'Generate Audio',
-    splitGrid: 'Split Grid',
-    output: 'Output',
-    outputGallery: 'Output Gallery',
     imageCompare: 'Image Compare',
     videoStitch: 'Video Stitch',
     easeCurve: 'Ease Curve',
@@ -497,9 +479,7 @@ export function WorkflowCanvas() {
         if (!targetNode) return false;
 
         const targetNodeType = targetNode.type;
-        if (targetNodeType === "generateVideo" || targetNodeType === "videoStitch" || targetNodeType === "easeCurve" || targetNodeType === "videoTrim" || targetNodeType === "videoFrameGrab" || targetNodeType === "output" || targetNodeType === "router") {
-          // For output node, we allow video even though its handle is typed as "image"
-          // because output node can display both images and videos
+        if (targetNodeType === "generateVideo" || targetNodeType === "videoStitch" || targetNodeType === "easeCurve" || targetNodeType === "videoTrim" || targetNodeType === "videoFrameGrab" || targetNodeType === "router") {
           return true;
         }
         // Video cannot connect to other node types
@@ -519,7 +499,7 @@ export function WorkflowCanvas() {
       if (sourceType === "audio" || targetType === "audio") {
         if (sourceType === "audio") {
           const targetNode = nodes.find((n) => n.id === connection.target);
-          if (targetNode?.type === "output" || targetNode?.type === "router") return true;
+          if (targetNode?.type === "router") return true;
         }
         return sourceType === "audio" && targetType === "audio";
       }
@@ -800,15 +780,6 @@ export function WorkflowCanvas() {
         if (handleList.includes(handleType)) return handleType;
 
         // Output node has dedicated video handle
-        if (handleType === "video" && needInput && node.type === "output") {
-          return "video";
-        }
-
-        // For audio output connecting to output node, use the "audio" input handle
-        if (handleType === "audio" && needInput && node.type === "output") {
-          return "audio";
-        }
-
         // Then check each handle's type
         for (const h of handleList) {
           if (getHandleType(h) === handleType) return h;
@@ -877,93 +848,6 @@ export function WorkflowCanvas() {
       });
     },
     [screenToFlowPosition, nodes, edges, handleConnect]
-  );
-
-  // Handle the splitGrid action - uses automated grid detection
-  const handleSplitGridAction = useCallback(
-    async (sourceNodeId: string, flowPosition: { x: number; y: number }) => {
-      const sourceNode = getNodeById(sourceNodeId);
-      if (!sourceNode) return;
-
-      // Get the output image from the source node
-      let sourceImage: string | null = null;
-      if (sourceNode.type === "generateImage") {
-        sourceImage = (sourceNode.data as NanoBananaNodeData).outputImage;
-      } else if (sourceNode.type === "imageInput") {
-        sourceImage = (sourceNode.data as { image: string | null }).image;
-      } else if (sourceNode.type === "mediaInput") {
-        const d = sourceNode.data as { mode?: string; image?: string | null; capturedImage?: string | null };
-        sourceImage = d.mode === "3d" ? (d.capturedImage ?? null) : (d.image ?? null);
-      } else if (sourceNode.type === "annotation") {
-        sourceImage = (sourceNode.data as { outputImage: string | null }).outputImage;
-      }
-
-      if (!sourceImage) {
-        alert("No image available to split. Generate or load an image first.");
-        return;
-      }
-
-      const sourceNodeData = sourceNode.type === "generateImage" ? sourceNode.data as NanoBananaNodeData : null;
-      setIsSplitting(true);
-
-      try {
-        const { grid, images } = await detectAndSplitGrid(sourceImage);
-
-        if (images.length === 0) {
-          alert("Could not detect grid in image.");
-          setIsSplitting(false);
-          return;
-        }
-
-        // Calculate layout for the new nodes
-        const nodeWidth = 300;
-        const nodeHeight = 280;
-        const gap = 20;
-
-        // Add split images to global history
-        images.forEach((imageData: string, index: number) => {
-          const row = Math.floor(index / grid.cols);
-          const col = index % grid.cols;
-          addToGlobalHistory({
-            image: imageData,
-            timestamp: Date.now() + index,
-            prompt: `Split ${row + 1}-${col + 1} from ${grid.rows}x${grid.cols} grid`,
-            aspectRatio: sourceNodeData?.aspectRatio || "1:1",
-            model: sourceNodeData?.model || "nano-banana",
-          });
-        });
-
-        // Create ImageInput nodes arranged in a grid matching the layout
-        images.forEach((imageData: string, index: number) => {
-          const row = Math.floor(index / grid.cols);
-          const col = index % grid.cols;
-
-          const nodeId = addNode("mediaInput", {
-            x: flowPosition.x + col * (nodeWidth + gap),
-            y: flowPosition.y + row * (nodeHeight + gap),
-          });
-
-          // Get dimensions from the split image
-          const img = new Image();
-          img.onload = () => {
-            updateNodeData(nodeId, {
-              mode: "image",
-              image: imageData,
-              filename: `split-${row + 1}-${col + 1}.png`,
-              dimensions: { width: img.width, height: img.height },
-            });
-          };
-          img.src = imageData;
-        });
-
-      } catch (error) {
-        console.error("[SplitGrid] Error:", error);
-        alert("Failed to split image grid: " + (error instanceof Error ? error.message : "Unknown error"));
-      } finally {
-        setIsSplitting(false);
-      }
-    },
-    [getNodeById, addNode, updateNodeData, addToGlobalHistory]
   );
 
   // Helper to get image from a node
@@ -1063,9 +947,6 @@ export function WorkflowCanvas() {
 
       // Handle actions differently from node creation
       if (selection.isAction) {
-        if (selection.type === "splitGridImmediate" && sourceNodeId) {
-          handleSplitGridAction(sourceNodeId, flowPosition);
-        }
         setConnectionDrop(null);
         return;
       }
@@ -1118,7 +999,7 @@ export function WorkflowCanvas() {
           sourceHandleIdForNewNode = "default";
         }
       } else if (handleType === "image") {
-        if (nodeType === "annotation" || nodeType === "output" || nodeType === "splitGrid" || nodeType === "outputGallery" || nodeType === "imageCompare") {
+        if (nodeType === "annotation" || nodeType === "imageCompare") {
           targetHandleId = "image";
           // annotation also has an image output
           if (nodeType === "annotation") {
@@ -1156,8 +1037,6 @@ export function WorkflowCanvas() {
         } else if (nodeType === "generateVideo") {
           // GenerateVideo outputs video
           sourceHandleIdForNewNode = "video";
-        } else if (nodeType === "output") {
-          targetHandleId = "video";
         }
       } else if (handleType === "audio") {
         if (nodeType === "audioInput" || nodeType === "mediaInput") {
@@ -1169,9 +1048,6 @@ export function WorkflowCanvas() {
           sourceHandleIdForNewNode = "audio";
         } else if (nodeType === "videoStitch") {
           // VideoStitch accepts audio
-          targetHandleId = "audio";
-        } else if (nodeType === "output") {
-          // Output accepts audio on its audio handle
           targetHandleId = "audio";
         }
       } else if (handleType === "3d") {
@@ -1263,7 +1139,7 @@ export function WorkflowCanvas() {
 
       setConnectionDrop(null);
     },
-    [connectionDrop, addNode, onConnect, nodes, handleSplitGridAction, getImageFromNode, updateNodeData]
+    [connectionDrop, addNode, onConnect, nodes, getImageFromNode, updateNodeData]
   );
 
   const handleCloseDropMenu = useCallback(() => {
@@ -1904,16 +1780,6 @@ export function WorkflowCanvas() {
         </div>
       )}
 
-      {/* Splitting indicator */}
-      {isSplitting && (
-        <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-neutral-800 border border-neutral-600 rounded-lg px-6 py-4 shadow-xl flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-neutral-200 text-sm font-medium">Splitting image grid...</p>
-          </div>
-        </div>
-      )}
-
       {/* New Project Setup Modal */}
       {showNewProjectSetup && (
         <ProjectSetupModal
@@ -2079,18 +1945,6 @@ export function WorkflowCanvas() {
             onClose={() => setExpandingNode(null)}
           />,
           document.body
-        );
-      })()}
-
-      {expandingNode && expandingNode.type === 'splitGrid' && (() => {
-        const node = getNodeById(expandingNode.id);
-        if (!node) return null;
-        return (
-          <SplitGridSettingsModal
-            nodeId={expandingNode.id}
-            nodeData={node.data as any}
-            onClose={() => setExpandingNode(null)}
-          />
         );
       })()}
 

@@ -46,8 +46,6 @@ function validateProposalShape(data: unknown): string | null {
     "prompt",
     "generateImage",
     "generateVideo",
-    "splitGrid",
-    "output",
   ];
 
   for (let i = 0; i < proposal.nodes.length; i++) {

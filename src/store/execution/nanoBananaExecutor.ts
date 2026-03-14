@@ -34,7 +34,6 @@ export async function executeNanoBanana(
     addToGlobalHistory,
     generationsPath,
     trackSaveGeneration,
-    appendOutputGalleryImage,
     get,
   } = ctx;
 
@@ -175,17 +174,6 @@ export async function executeNanoBanana(
       });
 
       // Push new image to connected downstream outputGallery nodes (atomic append)
-      const edges = getEdges();
-      const nodes = getNodes();
-      edges
-        .filter((e) => e.source === node.id)
-        .forEach((e) => {
-          const target = nodes.find((n) => n.id === e.target);
-          if (target?.type === "outputGallery") {
-            appendOutputGalleryImage(target.id, result.image);
-          }
-        });
-
       // Track cost
       if (nodeData.selectedModel?.provider === "fal" && nodeData.selectedModel?.pricing) {
         addIncurredCost(nodeData.selectedModel.pricing.amount);

@@ -261,29 +261,6 @@ async function externalizeNodeImages(
       break;
     }
 
-    case "output": {
-      const d = data as import("@/types").OutputNodeData;
-      // Output content is saved to /outputs during workflow execution, not here
-      // Clear image data to keep workflow file small - outputs are regenerated on each run
-      newData = { ...d, image: null, imageRef: undefined, video: null };
-      break;
-    }
-
-    case "splitGrid": {
-      const d = data as import("@/types").SplitGridNodeData;
-      // SplitGrid source is input content, save to inputs
-      // Skip if already has ref (prevents duplicates on re-save after hydration)
-      if (d.sourceImageRef && isBase64DataUrl(d.sourceImage)) {
-        newData = { ...d, sourceImage: null };
-      } else if (isBase64DataUrl(d.sourceImage)) {
-        const imageId = await saveImageAndGetId(d.sourceImage, workflowPath, savedImageIds, "inputs");
-        newData = { ...d, sourceImage: null, sourceImageRef: imageId };
-      } else {
-        newData = d;
-      }
-      break;
-    }
-
     default:
       newData = data;
   }
@@ -498,27 +475,6 @@ async function hydrateNodeImages(
         ...d,
         inputImages,
       };
-      break;
-    }
-
-    case "output": {
-      // Output content is not persisted - it's regenerated on each workflow run
-      // and saved to /outputs directory during execution
-      newData = data;
-      break;
-    }
-
-    case "splitGrid": {
-      const d = data as import("@/types").SplitGridNodeData;
-      if (d.sourceImageRef && !d.sourceImage) {
-        const sourceImage = await loadImageById(d.sourceImageRef, workflowPath, loadedImages, "inputs");
-        newData = {
-          ...d,
-          sourceImage,
-        };
-      } else {
-        newData = d;
-      }
       break;
     }
 

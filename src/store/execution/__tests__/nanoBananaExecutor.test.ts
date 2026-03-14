@@ -72,7 +72,6 @@ function makeCtx(
     generationsPath: null,
     saveDirectoryPath: null,
     trackSaveGeneration: vi.fn(),
-    appendOutputGalleryImage: vi.fn(),
     get: vi.fn().mockReturnValue({
       edges: [],
       nodes: [node],
@@ -321,28 +320,4 @@ describe("executeNanoBanana", () => {
     expect(body.prompt).toBe("stored prompt");
   });
 
-  it("should push to downstream outputGallery nodes", async () => {
-    const node = makeNode();
-    const galleryNode = {
-      id: "gal-1",
-      type: "outputGallery",
-      data: { images: ["old.png"] },
-    } as WorkflowNode;
-
-    const ctx = makeCtx(node, {
-      getEdges: vi.fn().mockReturnValue([
-        { id: "e1", source: "gen-1", target: "gal-1" },
-      ]),
-      getNodes: vi.fn().mockReturnValue([node, galleryNode]),
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ success: true, image: "data:image/png;base64,result" }),
-    });
-
-    await executeNanoBanana(ctx);
-
-    expect(ctx.appendOutputGalleryImage).toHaveBeenCalledWith("gal-1", "data:image/png;base64,result");
-  });
 });

@@ -56,9 +56,6 @@ export type NodeType =
   | "generateImage"
   | "generateVideo"
   | "generateAudio"
-  | "splitGrid"
-  | "output"
-  | "outputGallery"
   | "imageCompare"
   | "videoStitch"
   | "easeCurve"
@@ -283,25 +280,6 @@ export interface LLMGenerateNodeData extends BaseNodeData {
 }
 
 /**
- * Output node - displays final workflow results
- */
-export interface OutputNodeData extends BaseNodeData {
-  image: string | null;
-  imageRef?: string; // External image reference for storage optimization
-  video?: string | null; // Video data URL or HTTP URL
-  audio?: string | null; // Audio data URL or HTTP URL
-  contentType?: "image" | "video" | "audio"; // Explicit content type hint
-  outputFilename?: string; // Custom filename for saved outputs (without extension)
-}
-
-/**
- * Output Gallery node - displays scrollable thumbnail grid of images with lightbox
- */
-export interface OutputGalleryNodeData extends BaseNodeData {
-  images: string[]; // Array of base64 data URLs from connected nodes
-}
-
-/**
  * Image Compare node - side-by-side image comparison with draggable slider
  */
 export interface ImageCompareNodeData extends BaseNodeData {
@@ -418,33 +396,6 @@ export interface ConditionalSwitchNodeData extends BaseNodeData {
 }
 
 /**
- * Split Grid node - splits image into grid cells for parallel processing
- */
-export interface SplitGridNodeData extends BaseNodeData {
-  sourceImage: string | null;
-  sourceImageRef?: string; // External image reference for storage optimization
-  targetCount: number; // 4, 6, 8, 9, or 10
-  defaultPrompt: string;
-  generateSettings: {
-    aspectRatio: AspectRatio;
-    resolution: Resolution;
-    model: ModelType;
-    useGoogleSearch: boolean;
-    useImageSearch: boolean;
-  };
-  childNodeIds: Array<{
-    imageInput: string;
-    prompt: string;
-    generateImage: string;
-  }>;
-  gridRows: number;
-  gridCols: number;
-  isConfigured: boolean;
-  status: NodeStatus;
-  error: string | null;
-}
-
-/**
  * Comment node - canvas annotations/notes (non-executable)
  */
 export interface CommentNodeData extends BaseNodeData {
@@ -489,9 +440,6 @@ export type WorkflowNodeData =
   | GenerateVideoNodeData
   | Generate3DNodeData
   | GenerateAudioNodeData
-  | SplitGridNodeData
-  | OutputNodeData
-  | OutputGalleryNodeData
   | ImageCompareNodeData
   | VideoStitchNodeData
   | EaseCurveNodeData
