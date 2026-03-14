@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { BaseNode } from "../shared/BaseNode";
 import { useWorkflowStore, useProviderApiKeys } from "@/store/workflowStore";
+import { useShallow } from "zustand/shallow";
+import { getConnectedInputsPure } from "@/store/utils/connectedInputs";
 import { Generate3DNodeData, ProviderType, SelectedModel, ModelInputDef } from "@/types";
 import { ProviderModel, ModelCapability } from "@/lib/providers/types";
 import { ModelSearchDialog } from "@/components/modals/ModelSearchDialog";
@@ -28,8 +30,32 @@ type Generate3DNodeType = Node<Generate3DNodeData, "generate3d">;
 export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
+  const { hasPromptConnection, promptDisplayValue } = useWorkflowStore(
+    useShallow((state) => {
+      const hasConn = state.edges.some(
+        (e) =>
+          e.target === id &&
+          (e.targetHandle === "text" || e.targetHandle?.startsWith("text-")) &&
+          !e.data?.hasPause
+      );
+      const text = hasConn
+        ? getConnectedInputsPure(
+            id,
+            state.nodes,
+            state.edges,
+            undefined,
+            state.dimmedNodeIds
+          ).text
+        : null;
+      return {
+        hasPromptConnection: hasConn,
+        promptDisplayValue: text,
+      };
+    })
+  );
   const { replicateApiKey, falApiKey, kieApiKey } = useProviderApiKeys();
   const [isBrowseDialogOpen, setIsBrowseDialogOpen] = useState(false);
+  const [isPromptFocused, setIsPromptFocused] = useState(false);
 
   // Get the current selected provider (default to fal since most 3D models are there)
   const currentProvider: ProviderType = nodeData.selectedModel?.provider || "fal";
@@ -470,6 +496,32 @@ export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeT
           </div>
         )}
 
+        {/* Blur overlay: at bottom by default, expands to full node when textarea focused. Same as Generate Image. */}
+        <div
+          className={`absolute inset-x-0 bottom-0 z-[4] flex flex-col pointer-events-none [&>*]:pointer-events-auto backdrop-blur-md transition-all duration-300 ease-out ${
+            isPromptFocused ? "top-0" : ""
+          }`}
+        >
+          <div className="flex flex-1 flex-col justify-end px-2 pb-2 pt-1 min-h-0">
+            <div
+              className={`relative flex w-full justify-start transition-all duration-300 ease-out ${
+                isPromptFocused ? "flex-1 min-h-0 max-h-[60%]" : "min-h-0"
+              }`}
+            >
+              <textarea
+                className={`nodrag nopan w-full resize-none overflow-y-auto rounded-lg border-0 px-2 py-1.5 text-[11px] text-white placeholder:text-white/60 focus:outline-none focus:ring-0 bg-transparent ${
+                  isPromptFocused ? "min-h-24 flex-1" : "min-h-14 max-h-20"
+                } ${hasPromptConnection ? "cursor-default" : ""}`}
+                placeholder={hasPromptConnection ? "" : "Enter prompt or connect a prompt node"}
+                value={hasPromptConnection ? (promptDisplayValue ?? "") : (nodeData.inputPrompt ?? "")}
+                onChange={(e) => !hasPromptConnection && updateNodeData(id, { inputPrompt: e.target.value || null })}
+                readOnly={hasPromptConnection}
+                onFocus={() => setIsPromptFocused(true)}
+                onBlur={() => setIsPromptFocused(false)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </BaseNode>
 
