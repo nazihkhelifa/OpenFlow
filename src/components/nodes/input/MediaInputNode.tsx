@@ -651,9 +651,8 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
                   <GLBAutoRotate enabled={autoRotate && !isInteracting} />
                   <GLBCaptureHelper captureRef={glbCaptureRef} />
                 </Canvas>
-                <div className="absolute bottom-0 left-0 right-0 z-10 px-3 py-1.5 flex items-center justify-between gap-1 pointer-events-none bg-gradient-to-t from-black/60 to-transparent">
-                  <div className="flex items-center gap-1.5 min-w-0 pointer-events-auto">
-                    <span className="text-[10px] text-neutral-400 truncate max-w-[100px]">{nodeData.filename}</span>
+                <div className="absolute top-0 left-0 z-10 px-2 py-1.5 flex items-center gap-1.5 pointer-events-none bg-gradient-to-b from-black/50 to-transparent rounded-br">
+                  <div className="flex items-center gap-1 pointer-events-auto">
                     <button
                       onClick={() => setAutoRotate(!autoRotate)}
                       title={autoRotate ? "Stop auto-rotate" : "Auto-rotate"}
@@ -665,8 +664,6 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
                       </svg>
                     </button>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0 pointer-events-auto">
                     <button
                       onClick={handleGLBCapture}
                       title="Capture view as image"

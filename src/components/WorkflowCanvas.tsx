@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState, useEffect, DragEvent, useMemo } from "react";
 import {
   ReactFlow,
-  Background,
   Controls,
   NodeTypes,
   EdgeTypes,
@@ -1993,7 +1992,6 @@ export function WorkflowCanvas() {
         <SharedEdgeGradients />
         <GroupBackgroundsPortal />
         <GroupControlsOverlay />
-        <Background color="#404040" gap={20} size={1} />
         <Controls className="bg-neutral-800 border border-neutral-700 rounded-lg shadow-lg [&>button]:bg-neutral-800 [&>button]:border-neutral-700 [&>button]:fill-neutral-300 [&>button:hover]:bg-neutral-700 [&>button:hover]:fill-neutral-100" />
         <ViewportPortal>
           {allNodes.map((node) => {
