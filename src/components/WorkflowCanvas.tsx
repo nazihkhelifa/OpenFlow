@@ -137,7 +137,7 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
     case "generateAudio":
       return { inputs: ["text"], outputs: ["audio"] };
     case "imageCompare":
-      return { inputs: ["image"], outputs: [] };
+      return { inputs: ["image", "image-1"], outputs: [] };
     case "videoStitch":
       return { inputs: ["video", "audio"], outputs: ["video"] };
     case "easeCurve":

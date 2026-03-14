@@ -11,6 +11,7 @@ import { useWorkflowStore } from "@/store/workflowStore";
 import { ImageCompareNodeData } from "@/types";
 import { MediaExpandButton } from "../shared/MediaExpandButton";
 import { ConnectedImageThumbnails } from "../shared/ConnectedImageThumbnails";
+import { getConnectedInputsPure } from "@/store/utils/connectedInputs";
 
 type ImageCompareNodeType = Node<ImageCompareNodeData, "imageCompare">;
 
@@ -23,42 +24,13 @@ export function ImageCompareNode({
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const edges = useWorkflowStore((state) => state.edges);
   const nodes = useWorkflowStore((state) => state.nodes);
+  const dimmedNodeIds = useWorkflowStore((state) => state.dimmedNodeIds);
 
-  // Collect images in real-time from connected nodes (same pattern as OutputGalleryNode)
+  // Use same logic as execution: accept image from Upload, Generate Image, Generate 3D, Annotation, etc.
   const displayImages = useMemo(() => {
-    const connectedImages: string[] = [];
-
-    // Get edges connected to this node, sorted by creation time for stable ordering
-    const sortedEdges = edges
-      .filter((edge) => edge.target === id)
-      .sort((a, b) => {
-        const aTime = (a.data?.createdAt as number) || 0;
-        const bTime = (b.data?.createdAt as number) || 0;
-        return aTime - bTime;
-      });
-
-    sortedEdges.forEach((edge) => {
-      const sourceNode = nodes.find((n) => n.id === edge.source);
-      if (!sourceNode) return;
-
-      let image: string | null = null;
-
-      // Extract image from different node types
-      if (sourceNode.type === "imageInput") {
-        image = (sourceNode.data as any).image;
-      } else if (sourceNode.type === "annotation") {
-        image = (sourceNode.data as any).outputImage;
-      } else if (sourceNode.type === "generateImage") {
-        image = (sourceNode.data as any).outputImage;
-      }
-
-      if (image) {
-        connectedImages.push(image);
-      }
-    });
-
-    return connectedImages;
-  }, [edges, nodes, id]);
+    const { images } = getConnectedInputsPure(id, nodes, edges, undefined, dimmedNodeIds);
+    return images;
+  }, [id, nodes, edges, dimmedNodeIds]);
 
   const imageA = displayImages[0] || nodeData.imageA || null;
   const imageB = displayImages[1] || nodeData.imageB || null;
