@@ -14,6 +14,8 @@ import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useInlineParameters } from "@/hooks/useInlineParameters";
 import { InlineParameterPanel } from "../shared/InlineParameterPanel";
 import { NodeRunButton } from "../shared/NodeRunButton";
+import { loadNodeDefaults } from "@/store/utils/localStorage";
+import { getProviderDisplayName } from "@/utils/providerUrls";
 
 type GenerateAudioNodeType = Node<GenerateAudioNodeData, "generateAudio">;
 
@@ -195,6 +197,38 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
     return "Generate Audio";
   }, [nodeData.selectedModel?.displayName, nodeData.selectedModel?.modelId]);
 
+  // Default audio models from settings (same as ControlPanel / ProjectSetupModal)
+  const { defaultAudioModels, defaultModelIndex } = useMemo(() => {
+    const cfg = loadNodeDefaults();
+    const d = cfg.generateAudio;
+    const models = d?.selectedModels ?? (d?.selectedModel ? [d.selectedModel] : []);
+    const idx = Math.min(d?.defaultModelIndex ?? 0, Math.max(0, models.length - 1));
+    return { defaultAudioModels: models, defaultModelIndex: idx };
+  }, []);
+
+  const handleDefaultModelSelect = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const idx = parseInt(e.target.value, 10);
+      if (Number.isNaN(idx) || !defaultAudioModels[idx]) return;
+      const m = defaultAudioModels[idx];
+      updateNodeData(id, {
+        selectedModel: { provider: m.provider, modelId: m.modelId, displayName: m.displayName },
+        parameters: {},
+      });
+    },
+    [id, defaultAudioModels, updateNodeData]
+  );
+
+  const currentDefaultSelectValue =
+    nodeData.selectedModel && defaultAudioModels.length > 0
+      ? (() => {
+          const idx = defaultAudioModels.findIndex(
+            (m) => m.provider === nodeData.selectedModel?.provider && m.modelId === nodeData.selectedModel?.modelId
+          );
+          return idx >= 0 ? String(idx) : "";
+        })()
+      : "";
+
   // Inline parameters: compute collapse state and toggle handler
   const isParamsExpanded = nodeData.parametersExpanded ?? true; // default expanded
 
@@ -242,22 +276,50 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
             onToggle={handleToggleParams}
             nodeId={id}
           >
-            {/* Model selector: Browse button + current model display */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-neutral-200 truncate">
-                  {displayTitle}
+            {/* Model selector: list from settings (like image/video/3d) + Browse */}
+            <div className="flex flex-col gap-1.5">
+              {defaultAudioModels.length > 0 ? (
+                <>
+                  <label className="text-[10px] font-medium text-neutral-400">Model</label>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={currentDefaultSelectValue}
+                      onChange={handleDefaultModelSelect}
+                      className="nodrag nopan flex-1 min-w-0 px-2 py-1 text-[10px] bg-neutral-700 border border-neutral-600 rounded text-neutral-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      title={nodeData.selectedModel?.displayName || "Select model"}
+                    >
+                      <option value="">{displayTitle}</option>
+                      {defaultAudioModels.map((m, i) => (
+                        <option key={i} value={i}>
+                          {getProviderDisplayName(m.provider)}: {m.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setIsBrowseDialogOpen(true)}
+                      className="nodrag nopan shrink-0 px-2 py-1 text-[10px] bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded text-neutral-300 transition-colors"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                  <div className="text-[9px] text-neutral-500">
+                    {getProviderDisplayName(currentProvider)}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-neutral-200 truncate">{displayTitle}</div>
+                    <div className="text-[9px] text-neutral-500">{currentProvider}</div>
+                  </div>
+                  <button
+                    onClick={() => setIsBrowseDialogOpen(true)}
+                    className="nodrag nopan shrink-0 px-2 py-1 text-[10px] bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded text-neutral-300 transition-colors"
+                  >
+                    Browse
+                  </button>
                 </div>
-                <div className="text-[9px] text-neutral-500">
-                  {currentProvider}
-                </div>
-              </div>
-              <button
-                onClick={() => setIsBrowseDialogOpen(true)}
-                className="nodrag nopan shrink-0 px-2 py-1 text-[10px] bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded text-neutral-300 transition-colors"
-              >
-                Browse
-              </button>
+              )}
             </div>
 
             {/* External provider parameters - reuse ModelParameters component */}

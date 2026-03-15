@@ -795,14 +795,113 @@ function Generate3DControls({ node }: { node: Node }) {
 
 // Generate Audio Controls
 function GenerateAudioControls({ node }: { node: Node }) {
+  const nodeData = node.data as GenerateAudioNodeData;
+  const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const regenerateNode = useWorkflowStore((state) => state.regenerateNode);
   const isRunning = useWorkflowStore((state) => state.isRunning);
+  const currentProvider: ProviderType = nodeData.selectedModel?.provider || "fal";
+
+  const { defaultAudioModels, defaultModelIndex } = useMemo(() => {
+    const cfg = loadNodeDefaults();
+    const d = cfg.generateAudio;
+    const models = d?.selectedModels ?? (d?.selectedModel ? [d.selectedModel] : []);
+    const idx = Math.min(d?.defaultModelIndex ?? 0, Math.max(0, models.length - 1));
+    return { defaultAudioModels: models, defaultModelIndex: idx };
+  }, []);
+
+  const handleDefaultModelSelect = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const idx = parseInt(e.target.value, 10);
+      if (!Number.isNaN(idx) && defaultAudioModels[idx]) {
+        const m = defaultAudioModels[idx];
+        updateNodeData(node.id, {
+          selectedModel: { provider: m.provider, modelId: m.modelId, displayName: m.displayName },
+          parameters: {},
+        });
+      }
+    },
+    [node.id, defaultAudioModels, updateNodeData]
+  );
+
+  const handleParametersChange = useCallback(
+    (parameters: Record<string, unknown>) => {
+      updateNodeData(node.id, { parameters });
+    },
+    [node.id, updateNodeData]
+  );
 
   return (
-    <div className="space-y-3">
-      <div className="text-xs text-neutral-400">
-        Audio generation settings
+    <>
+      <div className="space-y-2">
+        {/* Model selector: defaults from Settings */}
+        <div className="border-t border-neutral-700 pt-2">
+          <div className="flex items-center justify-between gap-1 mb-0.5">
+            <label className="text-[10px] font-medium text-neutral-300">Model</label>
+            {defaultAudioModels.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const m = defaultAudioModels[defaultModelIndex];
+                  if (m) updateNodeData(node.id, { selectedModel: { provider: m.provider, modelId: m.modelId, displayName: m.displayName }, parameters: {} });
+                }}
+                className="nodrag nopan text-[9px] text-neutral-500 hover:text-neutral-300 transition-colors"
+              >
+                Use default
+              </button>
+            )}
+          </div>
+          <select
+            value={
+              nodeData.selectedModel && defaultAudioModels.length > 0
+                ? (() => {
+                    const idx = defaultAudioModels.findIndex(
+                      (m) => m.provider === nodeData.selectedModel?.provider && m.modelId === nodeData.selectedModel?.modelId
+                    );
+                    return idx >= 0 ? String(idx) : "";
+                  })()
+                : ""
+            }
+            onChange={handleDefaultModelSelect}
+            className="nodrag nopan w-full px-1.5 py-0.5 text-[10px] bg-neutral-700 border border-neutral-600 rounded text-neutral-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">{nodeData.selectedModel?.displayName || "Select model..."}</option>
+            {defaultAudioModels.map((m, i) => (
+              <option key={i} value={i}>{getProviderDisplayName(m.provider)}: {m.displayName}</option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-[10px] text-neutral-500 truncate">{getProviderDisplayName(currentProvider)}</span>
+            {nodeData.selectedModel?.modelId && (
+              <a
+                href={getModelPageUrl(currentProvider, nodeData.selectedModel.modelId) || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-neutral-500 hover:text-neutral-300 transition-colors"
+                title={`View on ${getProviderDisplayName(currentProvider)}`}
+                onClick={(e) => {
+                  if (!getModelPageUrl(currentProvider, nodeData.selectedModel?.modelId || "")) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
+        </div>
+
+        {nodeData.selectedModel?.modelId && (
+          <ModelParameters
+            modelId={nodeData.selectedModel.modelId}
+            provider={currentProvider}
+            parameters={nodeData.parameters || {}}
+            onParametersChange={handleParametersChange}
+          />
+        )}
       </div>
+
       <div className="flex justify-end">
         <button
           onClick={() => regenerateNode(node.id)}
@@ -813,7 +912,7 @@ function GenerateAudioControls({ node }: { node: Node }) {
           {isRunning ? "Running..." : "Run"}
         </button>
       </div>
-    </div>
+    </>
   );
 }
 

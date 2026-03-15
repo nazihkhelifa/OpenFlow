@@ -199,7 +199,8 @@ export function ProjectSetupModal({
   const [showImageModelDialog, setShowImageModelDialog] = useState(false);
   const [showVideoModelDialog, setShowVideoModelDialog] = useState(false);
   const [show3dModelDialog, setShow3dModelDialog] = useState(false);
-  const [modelDialogReplace, setModelDialogReplace] = useState<{ key: "generateImage" | "generateVideo" | "generate3d"; index: number } | null>(null);
+  const [showAudioModelDialog, setShowAudioModelDialog] = useState(false);
+  const [modelDialogReplace, setModelDialogReplace] = useState<{ key: "generateImage" | "generateVideo" | "generate3d" | "generateAudio"; index: number } | null>(null);
 
   // Canvas tab state
   const [localCanvasSettings, setLocalCanvasSettings] = useState<CanvasNavigationSettings>(canvasNavigationSettings);
@@ -253,6 +254,7 @@ export function ProjectSetupModal({
       setShowImageModelDialog(false);
       setShowVideoModelDialog(false);
       setShow3dModelDialog(false);
+      setShowAudioModelDialog(false);
 
       // Sync canvas settings
       setLocalCanvasSettings(canvasNavigationSettings);
@@ -764,6 +766,29 @@ export function ProjectSetupModal({
                 >
                   {(() => {
                     const models = localNodeDefaults.generate3d?.selectedModels ?? (localNodeDefaults.generate3d?.selectedModel ? [localNodeDefaults.generate3d.selectedModel] : []);
+                    return models.length > 0
+                      ? models.map((m, i) => <option key={i} value={i}>{m.displayName}</option>)
+                      : <option value={0}>Add models in Node Defaults</option>;
+                  })()}
+                </select>
+              </div>
+              {/* Audio default */}
+              <div className="flex items-center justify-between gap-4 py-2">
+                <label className="text-sm text-neutral-300 shrink-0 w-24">Audio</label>
+                <select
+                  value={(() => {
+                    const models = localNodeDefaults.generateAudio?.selectedModels ?? (localNodeDefaults.generateAudio?.selectedModel ? [localNodeDefaults.generateAudio.selectedModel] : []);
+                    const idx = localNodeDefaults.generateAudio?.defaultModelIndex ?? 0;
+                    return models.length > 0 ? Math.min(idx, models.length - 1) : 0;
+                  })()}
+                  onChange={(e) => setLocalNodeDefaults(prev => ({
+                    ...prev,
+                    generateAudio: { ...prev.generateAudio, defaultModelIndex: parseInt(e.target.value, 10) },
+                  }))}
+                  className="flex-1 max-w-xs px-3 py-2 text-sm bg-neutral-800 border border-neutral-600 rounded-lg text-neutral-100 focus:outline-none focus:border-neutral-500"
+                >
+                  {(() => {
+                    const models = localNodeDefaults.generateAudio?.selectedModels ?? (localNodeDefaults.generateAudio?.selectedModel ? [localNodeDefaults.generateAudio.selectedModel] : []);
                     return models.length > 0
                       ? models.map((m, i) => <option key={i} value={i}>{m.displayName}</option>)
                       : <option value={0}>Add models in Node Defaults</option>;
@@ -1413,6 +1438,42 @@ export function ProjectSetupModal({
               </div>
             </div>
 
+            {/* GenerateAudio Section */}
+            <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-neutral-100">Default Audio Models</span>
+                <p className="text-xs text-neutral-500">Multiple models available when creating new audio nodes.</p>
+                {(() => {
+                  const models = localNodeDefaults.generateAudio?.selectedModels ?? (localNodeDefaults.generateAudio?.selectedModel ? [localNodeDefaults.generateAudio.selectedModel] : []);
+                  return (
+                    <div className="space-y-2">
+                      {models.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-2 bg-neutral-800/50 rounded">
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-300 min-w-0">
+                            {getProviderIcon(m.provider)}
+                            <span className="truncate">{m.displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button type="button" onClick={() => { setModelDialogReplace({ key: "generateAudio", index: i }); setShowAudioModelDialog(true); }} className="px-2 py-0.5 text-[10px] bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded">Change</button>
+                            <button type="button" onClick={() => {
+                              const arr = models.filter((_, j) => j !== i);
+                              setLocalNodeDefaults(prev => ({
+                                ...prev,
+                                generateAudio: arr.length ? { ...prev.generateAudio, selectedModels: arr } : undefined,
+                              }));
+                            }} className="text-neutral-500 hover:text-red-400 text-xs">×</button>
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => { setModelDialogReplace(null); setShowAudioModelDialog(true); }} className="px-2 py-1 text-xs bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded transition-colors">
+                        {models.length ? "Add Model" : "Select Model"}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
             {/* LLM Section - multiple presets */}
             <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
               <div className="flex flex-col gap-3">
@@ -1619,6 +1680,27 @@ export function ProjectSetupModal({
               setModelDialogReplace(null);
             }}
             initialCapabilityFilter="3d"
+          />
+        </ReactFlowProvider>
+      )}
+      {showAudioModelDialog && (
+        <ReactFlowProvider>
+          <ModelSearchDialog
+            isOpen={showAudioModelDialog}
+            onClose={() => { setShowAudioModelDialog(false); setModelDialogReplace(null); }}
+            onModelSelected={(model: ProviderModel) => {
+              const entry = { provider: model.provider, modelId: model.id, displayName: model.name };
+              const models = localNodeDefaults.generateAudio?.selectedModels ?? (localNodeDefaults.generateAudio?.selectedModel ? [localNodeDefaults.generateAudio.selectedModel] : []);
+              const rep = modelDialogReplace?.key === "generateAudio" ? modelDialogReplace : null;
+              const newModels = rep ? models.map((m, i) => i === rep.index ? entry : m) : [...models, entry];
+              setLocalNodeDefaults(prev => ({
+                ...prev,
+                generateAudio: { ...prev.generateAudio, selectedModels: newModels }
+              }));
+              setShowAudioModelDialog(false);
+              setModelDialogReplace(null);
+            }}
+            initialCapabilityFilter="audio"
           />
         </ReactFlowProvider>
       )}
