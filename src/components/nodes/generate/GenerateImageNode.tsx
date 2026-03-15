@@ -746,8 +746,9 @@ export function GenerateImageNode({ id, data, selected }: NodeProps<GenerateImag
         Image
       </div>
 
-      <div className={`flex flex-col flex-1 min-h-0 w-full ${showHistoryStrip ? "rounded-xl overflow-hidden" : ""}`}>
+      <div className={`flex flex-col h-full w-full min-h-0 ${showHistoryStrip ? "rounded-xl overflow-hidden" : ""}`}>
         <div className={`relative flex-1 min-h-0 overflow-hidden ${showHistoryStrip ? "rounded-t-xl" : "rounded-xl"}`}>
+        <div className={`relative w-full h-full min-h-0 overflow-hidden ${showHistoryStrip ? "rounded-t-xl" : "rounded-xl"}`}>
         {/* Connected image thumbnails */}
         <div className="absolute bottom-2 left-2 z-[5]">
           <ConnectedImageThumbnails nodeId={id} />
@@ -897,6 +898,7 @@ export function GenerateImageNode({ id, data, selected }: NodeProps<GenerateImag
               />
             </div>
           </div>
+        </div>
         </div>
         </div>
         {showHistoryStrip && (() => {
