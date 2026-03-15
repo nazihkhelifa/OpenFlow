@@ -7,6 +7,7 @@ import { useWorkflowStore } from "@/store/workflowStore";
 import { ImageInputNodeData } from "@/types";
 import { calculateNodeSizeForFullBleed, SQUARE_SIZE } from "@/utils/nodeDimensions";
 import { MediaExpandButton } from "../shared/MediaExpandButton";
+import { UploadToolbar } from "./UploadToolbar";
 
 type ImageInputNodeType = Node<ImageInputNodeData, "imageInput">;
 
@@ -120,13 +121,36 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
     });
   }, [id, updateNodeData]);
 
+  const handleDownload = useCallback(() => {
+    if (!nodeData.image) return;
+    try {
+      const link = document.createElement("a");
+      link.href = nodeData.image;
+      link.download = nodeData.filename || "image.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      // ignore download errors
+    }
+  }, [nodeData.image, nodeData.filename]);
+
   return (
-    <BaseNode
+    <>
+      <UploadToolbar
+        nodeId={id}
+        hasImage={!!nodeData.image}
+        onReplaceClick={() => fileInputRef.current?.click()}
+        onDownloadClick={handleDownload}
+        // Fullscreen is already available via the expand button in the node;
+        // we keep this reserved for a future dedicated handler.
+      />
+      <BaseNode
       id={id}
       selected={selected}
       contentClassName="flex-1 min-h-0 overflow-clip"
       aspectFitMedia={nodeData.image}
-    >
+      >
       {/* Reference input handle for visual links from Split Grid node */}
       <Handle
         type="target"
@@ -193,6 +217,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         id="image"
         data-handletype="image"
       />
-    </BaseNode>
+      </BaseNode>
+    </>
   );
 }

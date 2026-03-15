@@ -13,6 +13,7 @@ import { MediaInputNodeData, type MediaInputMode } from "@/types";
 import { calculateNodeSizeForFullBleed, getVideoDimensions, SQUARE_SIZE } from "@/utils/nodeDimensions";
 import { MediaExpandButton } from "../shared/MediaExpandButton";
 import { NodeVideoPlayer } from "../shared/NodeVideoPlayer";
+import { UploadToolbar } from "./UploadToolbar";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
@@ -432,7 +433,16 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
 
   return (
     <>
-    <BaseNode
+      {hasContent && (mode === "image" || mode === "video") && (
+        <UploadToolbar
+          nodeId={id}
+          hasImage={mode === "image" ? !!nodeData.image : !!nodeData.videoFile}
+          onReplaceClick={handleReplace}
+          onDownloadClick={undefined}
+          mode={mode === "video" ? "video" : "image"}
+        />
+      )}
+      <BaseNode
       id={id}
       selected={selected}
       fullBleed
