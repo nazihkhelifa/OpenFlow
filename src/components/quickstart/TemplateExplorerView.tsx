@@ -6,6 +6,11 @@ import { getAllPresets, PRESET_TEMPLATES } from "@/lib/quickstart/templates";
 import { QuickstartBackButton } from "./QuickstartBackButton";
 import { TemplateCard } from "./TemplateCard";
 import { CommunityWorkflowMeta, TemplateCategory, TemplateMetadata } from "@/types/quickstart";
+import {
+  getQuickstartDefaults,
+  getQuickstartSystemInstructionExtra,
+} from "@/store/utils/localStorage";
+import type { LLMModelType, LLMProvider } from "@/types";
 
 interface TemplateExplorerViewProps {
   onBack: () => void;
@@ -38,6 +43,17 @@ export function TemplateExplorerView({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const presets = getAllPresets();
+
+  const quickstartDefaults = getQuickstartDefaults();
+  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
+  const defaultModels: Record<LLMProvider, LLMModelType> = {
+    google: "gemini-3-flash-preview",
+    openai: "gpt-4.1-mini",
+    anthropic: "claude-sonnet-4.5",
+  };
+  const model: LLMModelType =
+    quickstartDefaults?.model ?? defaultModels[provider];
+  const systemInstructionExtra = getQuickstartSystemInstructionExtra();
 
   // Debounce search query
   useEffect(() => {
@@ -224,6 +240,9 @@ export function TemplateExplorerView({
           body: JSON.stringify({
             templateId,
             contentLevel: "full",
+            provider,
+            model,
+            systemInstructionExtra,
           }),
         });
 

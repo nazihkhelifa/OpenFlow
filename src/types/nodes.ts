@@ -510,6 +510,12 @@ export interface NodeDefaultsConfig {
   llm?: LLMNodeDefaults;
   /** Default LLM provider/model used by "Generate workflow with AI" (quickstart). */
   quickstart?: LLMNodeDefaults;
+  /**
+   * Optional extra instructions appended to the system prompt used by /api/quickstart.
+   * This lets users add guardrails or formatting requirements without replacing
+   * the built-in node schema description.
+   */
+  quickstartSystemInstructionExtra?: string;
   /** Multiple LLM presets - user can pick when creating new nodes */
   llmPresets?: LLMNodeDefaults[];
   /** Index of LLM preset to auto-select when creating new nodes (default 0) */

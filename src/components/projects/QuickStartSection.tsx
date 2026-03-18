@@ -5,6 +5,11 @@ import type { WorkflowFile } from "@/store/workflowStore";
 import { getAllPresets, PRESET_TEMPLATES } from "@/lib/quickstart/templates";
 import type { TemplateMetadata } from "@/types/quickstart";
 import { TemplateGridCard } from "./TemplateGridCard";
+import {
+  getQuickstartDefaults,
+  getQuickstartSystemInstructionExtra,
+} from "@/store/utils/localStorage";
+import type { LLMModelType, LLMProvider } from "@/types";
 
 const primaryThumbnails: Record<string, string> = {
   "product-shot": "/template-thumbnails/primary/product-shot.jpg",
@@ -34,6 +39,17 @@ export function QuickStartSection({ searchQuery = "", onWorkflowSelected }: Quic
 
   const presets = getAllPresets();
 
+  const quickstartDefaults = getQuickstartDefaults();
+  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
+  const defaultModels: Record<LLMProvider, LLMModelType> = {
+    google: "gemini-3-flash-preview",
+    openai: "gpt-4.1-mini",
+    anthropic: "claude-sonnet-4.5",
+  };
+  const model: LLMModelType =
+    quickstartDefaults?.model ?? defaultModels[provider];
+  const systemInstructionExtra = getQuickstartSystemInstructionExtra();
+
   const filteredPresets = useMemo(() => {
     if (!searchQuery.trim()) return presets;
     const q = searchQuery.toLowerCase().trim();
@@ -62,7 +78,13 @@ export function QuickStartSection({ searchQuery = "", onWorkflowSelected }: Quic
         const res = await fetch("/api/quickstart", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateId, contentLevel: "full" }),
+          body: JSON.stringify({
+            templateId,
+            contentLevel: "full",
+            provider,
+            model,
+            systemInstructionExtra,
+          }),
         });
         const result = await res.json();
         if (!result.success) throw new Error(result.error || "Failed to load template");

@@ -1578,6 +1578,29 @@ export function ProjectSetupModal({
               </div>
             </div>
 
+            {/* Quickstart system instruction extra */}
+            <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-neutral-100">Quickstart System Instruction (Extra)</span>
+                <p className="text-xs text-neutral-500">
+                  Optional extra instructions appended to the built-in system prompt for workflow generation.
+                </p>
+                <textarea
+                  value={localNodeDefaults.quickstartSystemInstructionExtra ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setLocalNodeDefaults((prev) => ({
+                      ...prev,
+                      quickstartSystemInstructionExtra: v.trim().length ? v : undefined,
+                    }));
+                  }}
+                  placeholder="e.g., Always include a router node when the workflow has branching, and never use nodes outside the supported list."
+                  rows={4}
+                  className="w-full px-3 py-2 bg-neutral-800/50 border border-neutral-600 rounded-lg text-neutral-100 text-sm focus:outline-none focus:border-neutral-500 resize-none"
+                />
+              </div>
+            </div>
+
             {/* LLM Section - multiple presets */}
             <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
               <div className="flex flex-col gap-3">

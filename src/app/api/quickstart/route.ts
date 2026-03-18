@@ -3,7 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { WorkflowFile } from "@/store/workflowStore";
 import type { LLMModelType, LLMProvider } from "@/types";
 import { ContentLevel, getPresetTemplate } from "@/lib/quickstart/templates";
-import { buildQuickstartPrompt } from "@/lib/quickstart/prompts";
+import {
+  buildQuickstartPrompt,
+  buildQuickstartSystemInstruction,
+} from "@/lib/quickstart/prompts";
 import {
   validateWorkflowJSON,
   repairWorkflowJSON,
@@ -87,6 +90,7 @@ interface QuickstartRequest {
   templateId?: string;
   provider?: LLMProvider;
   model?: LLMModelType;
+  systemInstructionExtra?: string;
 }
 
 interface QuickstartResponse {
@@ -99,6 +103,7 @@ async function generateQuickstartText({
   provider,
   model,
   prompt,
+  systemInstruction,
   temperature,
   maxOutputTokens,
   requestId,
@@ -106,6 +111,7 @@ async function generateQuickstartText({
   provider: LLMProvider;
   model: LLMModelType;
   prompt: string;
+  systemInstruction: string;
   temperature: number;
   maxOutputTokens: number;
   requestId: string;
@@ -129,7 +135,7 @@ async function generateQuickstartText({
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
-      config: { temperature, maxOutputTokens },
+      config: { temperature, maxOutputTokens, systemInstruction },
     });
 
     const responseText = response.text;
@@ -162,7 +168,10 @@ async function generateQuickstartText({
       },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: prompt },
+        ],
         temperature,
         max_tokens: maxOutputTokens,
       }),
@@ -205,6 +214,7 @@ async function generateQuickstartText({
     },
     body: JSON.stringify({
       model: modelId,
+      system: systemInstruction,
       messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
       temperature,
       max_tokens: maxOutputTokens,
@@ -232,7 +242,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: QuickstartRequest = await request.json();
-    const { description, contentLevel, templateId } = body;
+    const { description, contentLevel, templateId, systemInstructionExtra } = body;
     const provider: LLMProvider = body.provider ?? "google";
     const model: LLMModelType = body.model ?? "gemini-3-flash-preview";
 
@@ -285,6 +295,13 @@ export async function POST(request: NextRequest) {
     const prompt = buildQuickstartPrompt(description.trim(), contentLevel);
     console.log(`[Quickstart:${requestId}] Prompt built, length: ${prompt.length}`);
 
+    const systemInstruction = [
+      buildQuickstartSystemInstruction(),
+      systemInstructionExtra ? `Additional system instructions:\n${systemInstructionExtra}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
     console.log(
       `[Quickstart:${requestId}] Calling ${provider} (${model}) for workflow generation...`
     );
@@ -296,6 +313,7 @@ export async function POST(request: NextRequest) {
       provider,
       model,
       prompt,
+      systemInstruction,
       temperature,
       maxOutputTokens,
       requestId,

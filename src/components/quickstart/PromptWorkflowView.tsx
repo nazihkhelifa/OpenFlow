@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { WorkflowFile } from "@/store/workflowStore";
 import { QuickstartBackButton } from "./QuickstartBackButton";
-import { getQuickstartDefaults } from "@/store/utils/localStorage";
+import { getQuickstartDefaults, getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
 import type { LLMModelType, LLMProvider } from "@/types";
 
 interface PromptWorkflowViewProps {
@@ -27,6 +27,7 @@ export function PromptWorkflowView({
     anthropic: "claude-sonnet-4.5",
   };
   const model: LLMModelType = quickstartDefaults?.model ?? defaultModels[provider];
+  const systemInstructionExtra = getQuickstartSystemInstructionExtra();
 
   const handleGenerate = useCallback(async () => {
     if (!description || description.trim().length < 3) {
@@ -46,6 +47,7 @@ export function PromptWorkflowView({
           contentLevel: "full",
           provider,
           model,
+          systemInstructionExtra,
         }),
       });
 

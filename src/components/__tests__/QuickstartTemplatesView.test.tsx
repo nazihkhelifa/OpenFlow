@@ -192,6 +192,8 @@ describe("QuickstartTemplatesView", () => {
           body: JSON.stringify({
             templateId: "product-shot",
             contentLevel: "full",
+            provider: "google",
+            model: "gemini-3-flash-preview",
           }),
         });
       });

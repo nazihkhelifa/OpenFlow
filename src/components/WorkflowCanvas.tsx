@@ -51,7 +51,7 @@ import { EdgeToolbar } from "./EdgeToolbar";
 import { GroupBackgroundsPortal, GroupControlsOverlay } from "./GroupsOverlay";
 import { NodeType, NanoBananaNodeData, HandleType, AnnotationNodeData } from "@/types";
 import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
-import { getQuickstartDefaults } from "@/store/utils/localStorage";
+import { getQuickstartDefaults, getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
 import { FloatingNodeHeader } from "./nodes/shared/FloatingNodeHeader";
 import { ControlPanel } from "./nodes/shared/ControlPanel";
 import { logger } from "@/utils/logger";
@@ -892,6 +892,7 @@ export function WorkflowCanvas() {
           : provider === "anthropic"
             ? "claude-sonnet-4.5"
             : "gemini-3-flash-preview");
+      const systemInstructionExtra = getQuickstartSystemInstructionExtra();
 
       const response = await fetch("/api/quickstart", {
         method: "POST",
@@ -901,6 +902,7 @@ export function WorkflowCanvas() {
           contentLevel: "full",
           provider,
           model,
+          systemInstructionExtra,
         }),
       });
 

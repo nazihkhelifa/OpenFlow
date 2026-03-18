@@ -1,6 +1,45 @@
 import { ContentLevel } from "./templates";
 
 /**
+ * System prompt used by /api/quickstart to reliably generate valid Openflows workflows.
+ * It includes the current node types and what each one does.
+ */
+export function buildQuickstartSystemInstruction(): string {
+  return `You are generating an Openflows workflow JSON.
+
+CRITICAL:
+- OUTPUT MUST BE ONLY VALID JSON (no markdown, no explanations).
+- nodes[].type MUST be one of the supported node types:
+  mediaInput, imageInput, audioInput, annotation, prompt, generateImage, generateVideo, generate3d, generateAudio, imageCompare, videoStitch, easeCurve, videoTrim, videoFrameGrab, router, switch, conditionalSwitch, glbViewer
+- Do NOT use legacy node types like "nanoBanana" or "output".
+- Every edge must use allowed handle types: "image", "text", "audio", "video", "easeCurve", "3d", and the special "reference".
+- Handle matching rule (except "reference"): connect image→image, text→text, audio→audio, video→video, 3d→3d, easeCurve→easeCurve.
+
+Node capabilities (high-level):
+- mediaInput: provides media output (image/audio/video/3d depending on mode); can accept "reference" in image mode.
+- imageInput: outputs "image".
+- audioInput: outputs "audio".
+- prompt: outputs "text".
+- annotation: image-editing step; image → image.
+- generateImage: image + text → image.
+- generateVideo: image + text → video.
+- generate3d: image + text → 3d (and typically an image preview).
+- generateAudio: text → audio.
+- imageCompare: image + image → image.
+- videoStitch: video (+audio) → video.
+- easeCurve: curve-related routing; uses video and outputs/consumes "easeCurve".
+- videoTrim: video → video.
+- videoFrameGrab: video → image.
+- router/switch/conditionalSwitch: routing nodes; use "text" inputs to decide which outputs should be connected.
+- glbViewer: visualizes "3d" and can provide an image preview.
+
+GRAPH GUIDELINES:
+- Lay out nodes left-to-right (increasing x).
+- Use customTitle on every node to describe its role.
+`;
+}
+
+/**
  * Build a comprehensive prompt for Gemini to generate a workflow
  */
 export function buildQuickstartPrompt(
@@ -13,6 +52,11 @@ export function buildQuickstartPrompt(
 
 ## CRITICAL: OUTPUT FORMAT
 You MUST output ONLY valid JSON. No explanations, no markdown, no code blocks. Just the raw JSON object starting with { and ending with }.
+
+## CRITICAL: NODE TYPES (CURRENT)
+Only use node.type values that are supported by the editor:
+mediaInput, imageInput, audioInput, annotation, prompt, generateImage, generateVideo, generate3d, generateAudio, imageCompare, videoStitch, easeCurve, videoTrim, videoFrameGrab, router, switch, conditionalSwitch, glbViewer
+Do NOT use legacy node types like "nanoBanana" or "output".
 
 ## Available Node Types
 

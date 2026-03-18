@@ -205,6 +205,14 @@ export const getQuickstartDefaults = (): LLMNodeDefaults | undefined => {
   return config.quickstart;
 };
 
+export const getQuickstartSystemInstructionExtra = (): string | undefined => {
+  const config = loadNodeDefaults();
+  const v = config.quickstartSystemInstructionExtra;
+  if (!v) return undefined;
+  const trimmed = v.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
 // Canvas navigation settings helpers
 export const getCanvasNavigationSettings = (): CanvasNavigationSettings => {
   if (typeof window === "undefined") return defaultCanvasNavigationSettings;

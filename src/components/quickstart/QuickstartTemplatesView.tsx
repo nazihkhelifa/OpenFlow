@@ -5,6 +5,11 @@ import { WorkflowFile } from "@/store/workflowStore";
 import { getAllPresets } from "@/lib/quickstart/templates";
 import { QuickstartBackButton } from "./QuickstartBackButton";
 import { CommunityWorkflowMeta } from "@/types/quickstart";
+import {
+  getQuickstartDefaults,
+  getQuickstartSystemInstructionExtra,
+} from "@/store/utils/localStorage";
+import type { LLMModelType, LLMProvider } from "@/types";
 
 interface QuickstartTemplatesViewProps {
   onBack: () => void;
@@ -21,6 +26,17 @@ export function QuickstartTemplatesView({
   const [error, setError] = useState<string | null>(null);
 
   const presets = getAllPresets();
+
+  const quickstartDefaults = getQuickstartDefaults();
+  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
+  const defaultModels: Record<LLMProvider, LLMModelType> = {
+    google: "gemini-3-flash-preview",
+    openai: "gpt-4.1-mini",
+    anthropic: "claude-sonnet-4.5",
+  };
+  const model: LLMModelType =
+    quickstartDefaults?.model ?? defaultModels[provider];
+  const systemInstructionExtra = getQuickstartSystemInstructionExtra();
 
   // Fetch community workflows on mount
   useEffect(() => {
@@ -56,6 +72,9 @@ export function QuickstartTemplatesView({
           body: JSON.stringify({
             templateId,
             contentLevel: "full",
+            provider,
+            model,
+            systemInstructionExtra,
           }),
         });
 
