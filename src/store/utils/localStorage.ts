@@ -200,6 +200,11 @@ export const getLLMDefaults = (): LLMNodeDefaults | undefined => {
   return presets[idx] ?? presets[0];
 };
 
+export const getQuickstartDefaults = (): LLMNodeDefaults | undefined => {
+  const config = loadNodeDefaults();
+  return config.quickstart;
+};
+
 // Canvas navigation settings helpers
 export const getCanvasNavigationSettings = (): CanvasNavigationSettings => {
   if (typeof window === "undefined") return defaultCanvasNavigationSettings;

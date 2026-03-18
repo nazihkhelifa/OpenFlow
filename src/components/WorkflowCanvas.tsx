@@ -51,6 +51,7 @@ import { EdgeToolbar } from "./EdgeToolbar";
 import { GroupBackgroundsPortal, GroupControlsOverlay } from "./GroupsOverlay";
 import { NodeType, NanoBananaNodeData, HandleType, AnnotationNodeData } from "@/types";
 import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
+import { getQuickstartDefaults } from "@/store/utils/localStorage";
 import { FloatingNodeHeader } from "./nodes/shared/FloatingNodeHeader";
 import { ControlPanel } from "./nodes/shared/ControlPanel";
 import { logger } from "@/utils/logger";
@@ -882,12 +883,24 @@ export function WorkflowCanvas() {
   const handleBuildWorkflow = useCallback(async (description: string) => {
     setIsBuildingWorkflow(true);
     try {
+      const quickstartDefaults = getQuickstartDefaults();
+      const provider = quickstartDefaults?.provider ?? "google";
+      const model =
+        quickstartDefaults?.model ??
+        (provider === "openai"
+          ? "gpt-4.1-mini"
+          : provider === "anthropic"
+            ? "claude-sonnet-4.5"
+            : "gemini-3-flash-preview");
+
       const response = await fetch("/api/quickstart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description,
           contentLevel: "full",
+          provider,
+          model,
         }),
       });
 

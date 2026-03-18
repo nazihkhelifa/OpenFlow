@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import { WorkflowFile } from "@/store/workflowStore";
 import { QuickstartBackButton } from "./QuickstartBackButton";
+import { getQuickstartDefaults } from "@/store/utils/localStorage";
+import type { LLMModelType, LLMProvider } from "@/types";
 
 interface PromptWorkflowViewProps {
   onBack: () => void;
@@ -16,6 +18,15 @@ export function PromptWorkflowView({
   const [description, setDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const quickstartDefaults = getQuickstartDefaults();
+  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
+  const defaultModels: Record<LLMProvider, LLMModelType> = {
+    google: "gemini-3-flash-preview",
+    openai: "gpt-4.1-mini",
+    anthropic: "claude-sonnet-4.5",
+  };
+  const model: LLMModelType = quickstartDefaults?.model ?? defaultModels[provider];
 
   const handleGenerate = useCallback(async () => {
     if (!description || description.trim().length < 3) {
@@ -33,6 +44,8 @@ export function PromptWorkflowView({
         body: JSON.stringify({
           description: description.trim(),
           contentLevel: "full",
+          provider,
+          model,
         }),
       });
 
@@ -96,7 +109,7 @@ export function PromptWorkflowView({
             about inputs, outputs, and any transformations.
           </p>
           <p className="text-xs text-neutral-400">
-            Note: This feature currently only works with Gemini models.
+            Uses your default workflow model from Settings.
           </p>
         </div>
 

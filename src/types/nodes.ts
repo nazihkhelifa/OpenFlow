@@ -508,6 +508,8 @@ export interface NodeDefaultsConfig {
   generate3d?: Generate3DNodeDefaults;
   generateAudio?: GenerateAudioNodeDefaults;
   llm?: LLMNodeDefaults;
+  /** Default LLM provider/model used by "Generate workflow with AI" (quickstart). */
+  quickstart?: LLMNodeDefaults;
   /** Multiple LLM presets - user can pick when creating new nodes */
   llmPresets?: LLMNodeDefaults[];
   /** Index of LLM preset to auto-select when creating new nodes (default 0) */

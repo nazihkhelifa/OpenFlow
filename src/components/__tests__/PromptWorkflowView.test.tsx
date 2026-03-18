@@ -232,6 +232,8 @@ describe("PromptWorkflowView", () => {
           body: JSON.stringify({
             description: "Create a product shot workflow",
             contentLevel: "full",
+            provider: "google",
+            model: "gemini-3-flash-preview",
           }),
         });
       });

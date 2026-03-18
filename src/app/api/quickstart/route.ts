@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { WorkflowFile } from "@/store/workflowStore";
+import type { LLMModelType, LLMProvider } from "@/types";
 import { ContentLevel, getPresetTemplate } from "@/lib/quickstart/templates";
 import { buildQuickstartPrompt } from "@/lib/quickstart/prompts";
 import {
@@ -13,6 +14,24 @@ import fs from "fs/promises";
 import path from "path";
 
 export const maxDuration = 60; // 1 minute timeout
+
+const GOOGLE_MODEL_MAP: Record<string, string> = {
+  "gemini-2.5-flash": "gemini-2.5-flash",
+  "gemini-3-flash-preview": "gemini-3-flash-preview",
+  "gemini-3-pro-preview": "gemini-3-pro-preview",
+  "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+};
+
+const OPENAI_MODEL_MAP: Record<string, string> = {
+  "gpt-4.1-mini": "gpt-4.1-mini",
+  "gpt-4.1-nano": "gpt-4.1-nano",
+};
+
+const ANTHROPIC_MODEL_MAP: Record<string, string> = {
+  "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
+  "claude-haiku-4.5": "claude-haiku-4-5-20251001",
+  "claude-opus-4.6": "claude-opus-4-6",
+};
 
 /**
  * Convert local image paths (e.g., /sample-images/model.jpg) to base64 data URLs
@@ -66,12 +85,145 @@ interface QuickstartRequest {
   description: string;
   contentLevel: ContentLevel;
   templateId?: string;
+  provider?: LLMProvider;
+  model?: LLMModelType;
 }
 
 interface QuickstartResponse {
   success: boolean;
   workflow?: WorkflowFile;
   error?: string;
+}
+
+async function generateQuickstartText({
+  provider,
+  model,
+  prompt,
+  temperature,
+  maxOutputTokens,
+  requestId,
+}: {
+  provider: LLMProvider;
+  model: LLMModelType;
+  prompt: string;
+  temperature: number;
+  maxOutputTokens: number;
+  requestId: string;
+}): Promise<string> {
+  const startTime = Date.now();
+
+  if (provider === "google") {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "GEMINI_API_KEY not configured. Add it to .env.local (or configure it in Settings)."
+      );
+    }
+
+    const modelId = GOOGLE_MODEL_MAP[model] ?? null;
+    if (!modelId) {
+      throw new Error(`Unsupported Gemini model: ${model}`);
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+      config: { temperature, maxOutputTokens },
+    });
+
+    const responseText = response.text;
+    if (!responseText) throw new Error("No response from Gemini API");
+
+    console.log(
+      `[Quickstart:${requestId}] Gemini response in ${Date.now() - startTime}ms`
+    );
+    return responseText;
+  }
+
+  if (provider === "openai") {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OPENAI_API_KEY not configured. Add it to .env.local (or configure it in Settings)."
+      );
+    }
+
+    const modelId = OPENAI_MODEL_MAP[model] ?? null;
+    if (!modelId) {
+      throw new Error(`Unsupported OpenAI model: ${model}`);
+    }
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: "user", content: prompt }],
+        temperature,
+        max_tokens: maxOutputTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const responseText = data.choices?.[0]?.message?.content;
+    if (!responseText) throw new Error("No response from OpenAI API");
+
+    console.log(
+      `[Quickstart:${requestId}] OpenAI response in ${Date.now() - startTime}ms`
+    );
+    return responseText;
+  }
+
+  // anthropic
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY not configured. Add it to .env.local (or configure it in Settings)."
+    );
+  }
+
+  const modelId = ANTHROPIC_MODEL_MAP[model] ?? null;
+  if (!modelId) {
+    throw new Error(`Unsupported Anthropic model: ${model}`);
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+      temperature,
+      max_tokens: maxOutputTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Anthropic API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const responseText = data.content?.[0]?.text;
+  if (!responseText) throw new Error("No response from Anthropic API");
+
+  console.log(
+    `[Quickstart:${requestId}] Anthropic response in ${Date.now() - startTime}ms`
+  );
+  return responseText;
 }
 
 export async function POST(request: NextRequest) {
@@ -81,12 +233,16 @@ export async function POST(request: NextRequest) {
   try {
     const body: QuickstartRequest = await request.json();
     const { description, contentLevel, templateId } = body;
+    const provider: LLMProvider = body.provider ?? "google";
+    const model: LLMModelType = body.model ?? "gemini-3-flash-preview";
 
     console.log(`[Quickstart:${requestId}] Parameters:`, {
       hasDescription: !!description,
       descriptionLength: description?.length || 0,
       contentLevel,
       templateId,
+      provider,
+      model,
     });
 
     // If a preset template is selected, return it directly
@@ -125,52 +281,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check API key
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error(`[Quickstart:${requestId}] No GEMINI_API_KEY configured`);
-      return NextResponse.json<QuickstartResponse>(
-        {
-          success: false,
-          error: "API key not configured. Add GEMINI_API_KEY to .env.local",
-        },
-        { status: 500 }
-      );
-    }
-
     // Build the prompt
     const prompt = buildQuickstartPrompt(description.trim(), contentLevel);
     console.log(`[Quickstart:${requestId}] Prompt built, length: ${prompt.length}`);
 
-    // Call Gemini API
-    console.log(`[Quickstart:${requestId}] Calling Gemini API...`);
-    const ai = new GoogleGenAI({ apiKey });
-    const startTime = Date.now();
+    console.log(
+      `[Quickstart:${requestId}] Calling ${provider} (${model}) for workflow generation...`
+    );
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        temperature: 0.3, // Lower for more consistent JSON output
-        maxOutputTokens: 16384, // Increased for complex workflows with many nodes
-      },
+    const temperature = 0.3; // Lower for more consistent JSON output
+    const maxOutputTokens = 16384; // For complex workflows with many nodes
+
+    const responseText = await generateQuickstartText({
+      provider,
+      model,
+      prompt,
+      temperature,
+      maxOutputTokens,
+      requestId,
     });
-
-    const duration = Date.now() - startTime;
-    console.log(`[Quickstart:${requestId}] Gemini API response in ${duration}ms`);
-
-    // Extract text from response
-    const responseText = response.text;
-    if (!responseText) {
-      console.error(`[Quickstart:${requestId}] No text in Gemini response`);
-      return NextResponse.json<QuickstartResponse>(
-        {
-          success: false,
-          error: "No response from AI model",
-        },
-        { status: 500 }
-      );
-    }
 
     console.log(`[Quickstart:${requestId}] Response text length: ${responseText.length}`);
 

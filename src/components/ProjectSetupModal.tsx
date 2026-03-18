@@ -1509,6 +1509,75 @@ export function ProjectSetupModal({
               </div>
             </div>
 
+            {/* Reference / Quickstart Model Section */}
+            <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-neutral-100">Reference Model</span>
+                <p className="text-xs text-neutral-500">
+                  Default LLM provider/model used by <span className="text-neutral-300">Generate workflow with AI</span>.
+                </p>
+
+                {(() => {
+                  const provider: LLMProvider = localNodeDefaults.quickstart?.provider ?? "google";
+                  const model: LLMModelType = localNodeDefaults.quickstart?.model ?? LLM_MODELS[provider][0].value;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-4 py-2">
+                        <label className="text-sm text-neutral-300 shrink-0 w-24">Provider</label>
+                        <select
+                          value={provider}
+                          onChange={(e) => {
+                            const nextProvider = e.target.value as LLMProvider;
+                            const nextModel = LLM_MODELS[nextProvider][0].value;
+                            setLocalNodeDefaults((prev) => ({
+                              ...prev,
+                              quickstart: {
+                                ...(prev.quickstart ?? {}),
+                                provider: nextProvider,
+                                model: nextModel,
+                              },
+                            }));
+                          }}
+                          className="flex-1 max-w-xs px-3 py-2 text-sm bg-neutral-800 border border-neutral-600 rounded-lg text-neutral-100 focus:outline-none focus:border-neutral-500"
+                        >
+                          {LLM_PROVIDERS.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 py-2">
+                        <label className="text-sm text-neutral-300 shrink-0 w-24">Model</label>
+                        <select
+                          value={model}
+                          onChange={(e) => {
+                            const nextModel = e.target.value as LLMModelType;
+                            setLocalNodeDefaults((prev) => ({
+                              ...prev,
+                              quickstart: {
+                                ...(prev.quickstart ?? {}),
+                                provider: (prev.quickstart?.provider ?? provider) as LLMProvider,
+                                model: nextModel,
+                              },
+                            }));
+                          }}
+                          className="flex-1 max-w-xs px-3 py-2 text-sm bg-neutral-800 border border-neutral-600 rounded-lg text-neutral-100 focus:outline-none focus:border-neutral-500"
+                        >
+                          {LLM_MODELS[provider].map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
             {/* LLM Section - multiple presets */}
             <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
               <div className="flex flex-col gap-3">
