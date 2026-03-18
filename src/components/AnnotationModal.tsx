@@ -99,6 +99,9 @@ export function AnnotationModal() {
   const transformerRef = useRef<Konva.Transformer>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const [imageCache, setImageCache] = useState<Record<string, HTMLImageElement>>({});
+  // Keep a stable base size for each image layer so changing the canvas ratio
+  // does not implicitly resize already-positioned images.
+  const imageBaseSizeRef = useRef<Record<string, { width: number; height: number }>>({});
   const [layerContextMenu, setLayerContextMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingLayerName, setEditingLayerName] = useState("");
@@ -486,10 +489,14 @@ export function AnnotationModal() {
       if (isImageLayer(item)) {
         const img = imageCache[item.url];
         if (!img) return;
+        const base = imageBaseSizeRef.current[item.id] ?? { width: w, height: h };
+        if (!imageBaseSizeRef.current[item.id]) {
+          imageBaseSizeRef.current[item.id] = base;
+        }
         const konvaImage = new Konva.Image({
           image: img,
-          width: w,
-          height: h,
+          width: base.width,
+          height: base.height,
           x: item.x,
           y: item.y,
           scaleX: item.scaleX,
@@ -1352,6 +1359,10 @@ export function AnnotationModal() {
                     const img = imageCache[item.url];
                     if (!img) return null;
                     const canEdit = currentTool === "select" && !isLayerLocked(item);
+                  const base = imageBaseSizeRef.current[item.id] ?? { width: stageSize.width, height: stageSize.height };
+                  if (!imageBaseSizeRef.current[item.id]) {
+                    imageBaseSizeRef.current[item.id] = base;
+                  }
                     return (
                       <Group
                         key={item.id}
@@ -1388,7 +1399,7 @@ export function AnnotationModal() {
                           });
                         }}
                       >
-                        <KonvaImage image={img} width={stageSize.width} height={stageSize.height} listening={canEdit} />
+                      <KonvaImage image={img} width={base.width} height={base.height} listening={canEdit} />
                       </Group>
                     );
                   }
