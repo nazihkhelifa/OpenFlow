@@ -1819,13 +1819,7 @@ export function WorkflowCanvas() {
         fitView
         deleteKeyCode={["Backspace", "Delete"]}
         multiSelectionKeyCode="Shift"
-        selectionOnDrag={
-          canvasNavigationSettings.selectionMode === "altDrag" || canvasNavigationSettings.selectionMode === "shiftDrag"
-            ? false
-            : canvasNavigationSettings.panMode === "always"
-            ? false
-            : isMacOS && !isModalOpen
-        }
+        selectionOnDrag={!isModalOpen && canvasNavigationSettings.panMode !== "always"}
         selectionKeyCode={
           isModalOpen ? null
             : canvasNavigationSettings.selectionMode === "altDrag" ? "Alt"
@@ -1839,9 +1833,9 @@ export function WorkflowCanvas() {
             ? true
             : canvasNavigationSettings.panMode === "middleMouse"
             ? [2]
-            : !isMacOS
+            : false
         }
-        selectNodesOnDrag={false}
+        selectNodesOnDrag={!isModalOpen && canvasNavigationSettings.panMode !== "always"}
         nodeDragThreshold={5}
         nodeClickDistance={5}
         zoomOnScroll={false}
