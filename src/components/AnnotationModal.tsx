@@ -175,21 +175,24 @@ export function AnnotationModal() {
     ? { width: canvasPreset.width, height: canvasPreset.height }
     : { width: 1080, height: 1080 };
 
+  const recomputeViewScale = useCallback(() => {
+    // Always render the stage/frame 33% smaller on screen.
+    setScale(0.67);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
   useEffect(() => {
-    if (!containerRef.current) return;
     const { width, height } = stageSizeFromPreset;
-    const containerWidth = containerRef.current.clientWidth - 100;
-    const containerHeight = containerRef.current.clientHeight - 100;
-    const scaleX = containerWidth / width;
-    const scaleY = containerHeight / height;
-    const newScale = Math.min(scaleX, scaleY, 1);
-    setScale(newScale);
     setStageSize({ width, height });
-    setPosition({
-      x: (containerWidth - width * newScale) / 2 + 50,
-      y: (containerHeight - height * newScale) / 2 + 50,
-    });
+    // Flora-style: the stage is the frame; we only scale the view to keep it visible.
+    recomputeViewScale();
   }, [stageSizeFromPreset.width, stageSizeFromPreset.height]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    recomputeViewScale();
+    return;
+  }, [isModalOpen, recomputeViewScale]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -458,12 +461,10 @@ export function AnnotationModal() {
   }, [isDrawing, currentShape, addAnnotation]);
 
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
+    // Keep page from scrolling while interacting with the stage,
+    // but do not zoom the frame.
     e.evt.preventDefault();
-    const scaleBy = 1.1;
-    const oldScale = scale;
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    setScale(Math.min(Math.max(newScale, 0.1), 5));
-  }, [scale]);
+  }, []);
 
   const flattenImage = useCallback((): string => {
     const w = stageSize.width;
@@ -876,9 +877,9 @@ export function AnnotationModal() {
               </span>
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setScale(Math.max(scale - 0.1, 0.1))}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[11px] text-text-3 hover:bg-background-light-alpha-1 hover:text-text-1"
-                  title="Zoom out"
+                  disabled
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[11px] text-text-3 opacity-40"
+                  title="Zoom disabled"
                 >
                   -
                 </button>
@@ -886,9 +887,9 @@ export function AnnotationModal() {
                   {Math.round(scale * 100)}%
                 </span>
                 <button
-                  onClick={() => setScale(Math.min(scale + 0.1, 5))}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[11px] text-text-3 hover:bg-background-light-alpha-1 hover:text-text-1"
-                  title="Zoom in"
+                  disabled
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[11px] text-text-3 opacity-40"
+                  title="Zoom disabled"
                 >
                   +
                 </button>
@@ -1311,7 +1312,10 @@ export function AnnotationModal() {
 
       {/* Centered canvas (no header, no card background) */}
       <div className="relative flex items-center justify-center w-[1180px] h-[760px]">
-        <div ref={containerRef} className="flex items-center justify-center">
+        <div
+          ref={containerRef}
+          className="flex h-full w-full items-center justify-center overflow-hidden"
+        >
           <div
             className="relative alpha-checker-pattern rounded-2xl"
             style={{ width: stageSize.width, height: stageSize.height }}
@@ -1321,10 +1325,11 @@ export function AnnotationModal() {
               ref={stageRef}
               width={stageSize.width}
               height={stageSize.height}
-              scaleX={scale}
-              scaleY={scale}
-              x={position.x}
-              y={position.y}
+              style={{ width: stageSize.width * scale, height: stageSize.height * scale }}
+              scaleX={1}
+              scaleY={1}
+              x={0}
+              y={0}
               draggable={false}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -1340,13 +1345,6 @@ export function AnnotationModal() {
                   height={stageSize.height}
                   fill="#1a1a1a"
                   listening={currentTool === "select"}
-                  draggable={currentTool === "select"}
-                  dragBoundFunc={() => ({ x: 0, y: 0 })}
-                  onDragMove={(e) => {
-                    const node = e.target;
-                    setPosition((p) => ({ x: p.x + node.x(), y: p.y + node.y() }));
-                    node.position({ x: 0, y: 0 });
-                  }}
                   id="pan-background"
                 />
                 {unifiedLayers.filter(isLayerVisible).map((item) => {
