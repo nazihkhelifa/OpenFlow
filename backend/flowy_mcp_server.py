@@ -80,6 +80,50 @@ def _heuristic_plan_edits(
 
     selected_set = set(selected_node_ids)
 
+    def edge_exists(
+        source: str,
+        target: str,
+        source_handle: Optional[str],
+        target_handle: Optional[str],
+    ) -> bool:
+        for e in edges:
+            try:
+                if (
+                    e.get("source") == source
+                    and e.get("target") == target
+                    and (source_handle is None or e.get("sourceHandle") == source_handle)
+                    and (target_handle is None or e.get("targetHandle") == target_handle)
+                ):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def is_image_source_type(node_type: Optional[str]) -> bool:
+        # Nodes that can output an "image" handle in our current canvas model
+        return node_type in {
+            "imageInput",
+            "mediaInput",
+            "generateImage",
+            "generate3d",
+            "glbViewer",
+            "imageCompare",
+            "videoFrameGrab",
+        }
+
+    # Intent detection: when user asks to connect/add "genre image" (or similar),
+    # we should add an imageInput source and wire it to the prompt's image input.
+    wants_new_image_source = (
+        "genre" in message_l
+        or "reference image" in message_l
+        or ("reference" in message_l and "image" in message_l)
+        or "style image" in message_l
+        or (
+            ("connect" in message_l or "add image" in message_l or "another image" in message_l)
+            and "image" in message_l
+        )
+    )
+
     def _update_prompt_nodes(prompt_ids: List[str]) -> Tuple[str, List[Dict[str, Any]]]:
         prompt_ids = [pid for pid in prompt_ids if pid in nodes_by_id]
         if not prompt_ids:
@@ -104,6 +148,117 @@ def _heuristic_plan_edits(
 
     # If the user selected nodes, prefer updating the prompt nodes that connect to them.
     if selected_set:
+        # Compute prompts that receive image from the selected nodes.
+        image_to_prompt_prompt_ids: List[str] = []
+        for e in edges:
+            try:
+                if (
+                    e.get("source") in selected_set
+                    and e.get("targetHandle") == "image"
+                    and nodes_by_id.get(e.get("target"), {}).get("type") == "prompt"
+                ):
+                    image_to_prompt_prompt_ids.append(e.get("target"))
+            except Exception:
+                continue
+
+        if wants_new_image_source:
+            prompt_target_id = (image_to_prompt_prompt_ids[0] if image_to_prompt_prompt_ids else None)
+
+            prompt_id = prompt_target_id or "flowy-prompt-1"
+            genre_image_id = "flowy-genre-imageInput-1"
+
+            operations: List[Dict[str, Any]] = []
+
+            x0 = max_x + 260
+            y0 = 0
+
+            def add_node(op_node_type: str, node_id: str, x: float, y: float, data: Optional[Dict[str, Any]] = None):
+                op: Dict[str, Any] = {
+                    "type": "addNode",
+                    "nodeType": op_node_type,
+                    "nodeId": node_id,
+                    "position": {"x": x, "y": y},
+                }
+                if data:
+                    op["data"] = data
+                operations.append(op)
+
+            def add_edge_local(source: str, target: str, source_handle: str, target_handle: str):
+                if edge_exists(source, target, source_handle, target_handle):
+                    return
+                operations.append(
+                    {
+                        "type": "addEdge",
+                        "source": source,
+                        "target": target,
+                        "sourceHandle": source_handle,
+                        "targetHandle": target_handle,
+                    }
+                )
+
+            # If no prompt is connected to the selected images, create it.
+            if prompt_target_id is None:
+                add_node(
+                    "prompt",
+                    prompt_id,
+                    x0,
+                    y0,
+                    {"customTitle": "Prompt", "prompt": message},
+                )
+
+                # Wire selected image sources into the prompt
+                for sid in selected_node_ids:
+                    if not is_image_source_type(nodes_by_id.get(sid, {}).get("type")):
+                        continue
+                    add_edge_local(sid, prompt_id, "image", "image")
+            else:
+                operations.append(
+                    {
+                        "type": "updateNode",
+                        "nodeId": prompt_target_id,
+                        "data": {
+                            "prompt": message,
+                            "customTitle": (
+                                "Prompt: "
+                                + message.replace("\n", " ").strip()[:24]
+                                + ("..." if len(message.replace("\n", " ").strip()) > 24 else "")
+                            ),
+                        },
+                    }
+                )
+
+            # Add the genre image input and connect it to prompt.image
+            add_node(
+                "imageInput",
+                genre_image_id,
+                x0 + 260,
+                y0,
+                {"customTitle": "Genre Image"},
+            )
+            add_edge_local(genre_image_id, prompt_id, "image", "image")
+
+            # If there is any generate node in the workflow, connect prompt.text -> it (and images -> it).
+            generate_image_types = {"generateImage", "generateVideo", "generate3d"}
+            generate_text_nodes = [
+                nid
+                for nid, n in nodes_by_id.items()
+                if n.get("type") in ({"generateImage", "generateVideo", "generate3d", "generateAudio"})
+            ]
+            if generate_text_nodes:
+                gen_id = generate_text_nodes[0]
+                gen_type = nodes_by_id.get(gen_id, {}).get("type")
+
+                add_edge_local(prompt_id, gen_id, "text", "text")
+                if gen_type in generate_image_types:
+                    # Feed images into the generation node
+                    for sid in selected_node_ids:
+                        if not is_image_source_type(nodes_by_id.get(sid, {}).get("type")):
+                            continue
+                        add_edge_local(sid, gen_id, "image", "image")
+                    add_edge_local(genre_image_id, gen_id, "image", "image")
+
+            return ("Adding and connecting a genre image node.", operations)
+
         selected_prompt_ids = [
             nid
             for nid in selected_node_ids
@@ -222,9 +377,40 @@ def _heuristic_plan_edits(
         add_edge(img_id, gen_id, "image", "image")
         return "Building an image-to-image workflow.", operations
 
-    # Non-empty + no prompt node: add prompt only and update it.
-    add_node("prompt", "flowy-prompt-1", x0, y0, {"customTitle": "Prompt", "prompt": message})
-    return "Adding a new prompt node.", operations
+    # Non-empty + no prompt node:
+    # Create a prompt and wire selected image inputs into prompt.image.
+    # Also try to attach prompt.text to the first existing generate node so it becomes usable.
+    prompt_id = "flowy-prompt-1"
+    add_node("prompt", prompt_id, x0, y0, {"customTitle": "Prompt", "prompt": message})
+
+    image_source_ids = [
+        sid
+        for sid in selected_node_ids
+        if is_image_source_type(nodes_by_id.get(sid, {}).get("type"))
+    ]
+
+    for sid in image_source_ids:
+        if not edge_exists(sid, prompt_id, "image", "image"):
+            add_edge(sid, prompt_id, "image", "image")
+
+    generate_targets = [
+        nid
+        for nid, n in nodes_by_id.items()
+        if n.get("type") in {"generateImage", "generateVideo", "generate3d", "generateAudio"}
+    ]
+
+    if generate_targets:
+        gen_id = generate_targets[0]
+        gen_type = nodes_by_id.get(gen_id, {}).get("type")
+        if not edge_exists(prompt_id, gen_id, "text", "text"):
+            add_edge(prompt_id, gen_id, "text", "text")
+
+        if gen_type in {"generateImage", "generateVideo", "generate3d"}:
+            for sid in image_source_ids:
+                if not edge_exists(sid, gen_id, "image", "image"):
+                    add_edge(sid, gen_id, "image", "image")
+
+    return "Added a new prompt node and wired it into your selected pipeline.", operations
 
 
 @mcp.tool()
