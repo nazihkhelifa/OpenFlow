@@ -90,6 +90,29 @@ export function FlowyAgentPanel({
 
   const [sessions, setSessions] = useState<ChatSession[]>(() => [{ ...seed, title: "New Chat" }]);
   const [activeSessionId, setActiveSessionId] = useState<string>(() => seed.id);
+  const activeSessionIdRef = useRef(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
+
+  const updateSessionMessages = useCallback((sessionId: string, updater: (prev: ChatMsg[]) => ChatMsg[]) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== sessionId) return s;
+        const nextMsgs = updater(s.messages);
+        const firstUser = nextMsgs.find((m) => m.role === "user")?.text?.trim();
+        const title = firstUser
+          ? firstUser.replace(/\s+/g, " ").slice(0, 42) + (firstUser.length > 42 ? "..." : "")
+          : "New Chat";
+        return { ...s, messages: nextMsgs, title };
+      })
+    );
+  }, []);
+
+  /** Single source of truth: always read the active thread from `sessions` (avoids stale split state when switching chats mid-request). */
+  const chatMessages = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId)?.messages ?? [],
+    [sessions, activeSessionId]
+  );
+
   const [isDocked, setIsDocked] = useState<boolean>(() => loadDockedPreference());
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [customInstructions, setCustomInstructions] = useState<string>(() => loadCustomInstructions());
@@ -102,7 +125,6 @@ export function FlowyAgentPanel({
   const [isPlanning, setIsPlanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [pendingOperations, setPendingOperations] = useState<EditOperation[] | null>(null);
   const [pendingExplanation, setPendingExplanation] = useState<string | null>(null);
   const [pendingExecuteNodeIds, setPendingExecuteNodeIds] = useState<string[] | null>(null);
@@ -130,8 +152,6 @@ export function FlowyAgentPanel({
     if (loaded) {
       setSessions(loaded.sessions as ChatSession[]);
       setActiveSessionId(loaded.activeId);
-      const active = loaded.sessions.find((s) => s.id === loaded.activeId);
-      setChatMessages((active?.messages ?? []) as ChatMsg[]);
     }
     setStorageReady(true);
   }, []);
@@ -175,24 +195,6 @@ export function FlowyAgentPanel({
       document.removeEventListener("keydown", onKey);
     };
   }, [historyMenuOpen]);
-
-  useEffect(() => {
-    const active = sessions.find((s) => s.id === activeSessionId);
-    if (active) setChatMessages(active.messages);
-  }, [activeSessionId, sessions]);
-
-  useEffect(() => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== activeSessionId) return s;
-        const firstUser = chatMessages.find((m) => m.role === "user")?.text?.trim();
-        const title = firstUser
-          ? firstUser.replace(/\s+/g, " ").slice(0, 42) + (firstUser.length > 42 ? "..." : "")
-          : "New Chat";
-        return { ...s, messages: chatMessages, title };
-      })
-    );
-  }, [activeSessionId, chatMessages]);
 
   const stateForRequest = useMemo(() => {
     // Ensure we always send a consistent shape.
@@ -254,12 +256,15 @@ export function FlowyAgentPanel({
       const trimmed = message.trim();
       if (!trimmed || isPlanning) return;
 
+      // Bind this request to the chat that was active when it started (survives session switches while the plan API is in flight).
+      const sessionId = activeSessionIdRef.current;
+
       setErrorMessage(null);
       setIsPlanning(true);
 
       if (!opts?.suppressUserEcho) {
         const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text: trimmed };
-        setChatMessages((prev) => [...prev, userMsg]);
+        updateSessionMessages(sessionId, (prev) => [...prev, userMsg]);
       }
 
       try {
@@ -311,7 +316,7 @@ export function FlowyAgentPanel({
           autoRunCompletedRef.current = false;
         }
         setCursor((c) => ({ ...c, visible: false }));
-        setChatMessages((prev) => [
+        updateSessionMessages(sessionId, (prev) => [
           ...prev,
           { id: `a-${Date.now()}`, role: "assistant", text: assistantText },
         ]);
@@ -323,7 +328,7 @@ export function FlowyAgentPanel({
         setIsPlanning(false);
       }
     },
-    [contextNodeIds, customInstructions, isPlanning, scrollToBottom, stateForRequest]
+    [contextNodeIds, customInstructions, isPlanning, scrollToBottom, stateForRequest, updateSessionMessages]
   );
 
   const handlePlan = useCallback(async () => {
@@ -559,8 +564,6 @@ export function FlowyAgentPanel({
     (id: string) => {
       stopAutoRun();
       setActiveSessionId(id);
-      const s = sessions.find((x) => x.id === id);
-      setChatMessages(s?.messages ?? []);
       setPendingOperations(null);
       setPendingExplanation(null);
       setPendingExecuteNodeIds(null);
@@ -568,14 +571,13 @@ export function FlowyAgentPanel({
       setErrorMessage(null);
       setHistoryMenuOpen(false);
     },
-    [sessions, resetExecution, stopAutoRun]
+    [resetExecution, stopAutoRun]
   );
 
   const handleNewChat = useCallback(() => {
     const next = createSession();
     setSessions((prev) => [next, ...prev]);
     setActiveSessionId(next.id);
-    setChatMessages([]);
     setHistoryMenuOpen(false);
     setInput("");
     setPendingOperations(null);
