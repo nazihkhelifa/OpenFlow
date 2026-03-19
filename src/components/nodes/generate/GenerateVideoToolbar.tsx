@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { NodeToolbar, Position } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { useToast } from "@/components/Toast";
 import type { GenerateVideoNodeData } from "@/types";
 import { ProviderBadge } from "../shared/ProviderBadge";
+import {
+  extractFrameFromVideoElement,
+  extractFrameFromVideoUrl,
+  type VideoFrameExtractionSlot,
+} from "@/utils/extractVideoFrame";
 
 interface GenerateVideoToolbarProps {
   nodeId: string;
+  videoPreviewRef?: RefObject<HTMLVideoElement | null>;
+  outputVideoUrl?: string | null;
 }
 
-export function GenerateVideoToolbar({ nodeId }: GenerateVideoToolbarProps) {
+export function GenerateVideoToolbar({
+  nodeId,
+  videoPreviewRef,
+  outputVideoUrl = null,
+}: GenerateVideoToolbarProps) {
   const node = useWorkflowStore((state) =>
     state.nodes.find((n) => n.id === nodeId)
   );
@@ -37,14 +49,72 @@ export function GenerateVideoToolbar({ nodeId }: GenerateVideoToolbarProps) {
     };
   }, [data]);
 
-  if (!node) return null;
-
-  const stopProp = (e: React.MouseEvent | React.PointerEvent) =>
-    e.stopPropagation();
-
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement | null>(null);
   const hasVideo = !!data?.outputVideo;
+
+  const { addNode, addEdgeWithType, nodes } = useWorkflowStore();
+
+  const handleExtractVideoFrame = useCallback(
+    async (slot: VideoFrameExtractionSlot) => {
+      if (!hasVideo || !data?.outputVideo) return;
+      const sourceNode = nodes.find((n) => n.id === nodeId);
+      if (!sourceNode) return;
+
+      const el = videoPreviewRef?.current ?? null;
+      let dataUrl: string | null = null;
+      if (el && el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        dataUrl = await extractFrameFromVideoElement(el, slot);
+      }
+      if (!dataUrl && outputVideoUrl) {
+        const hint = slot === "current" && el ? el.currentTime : undefined;
+        dataUrl = await extractFrameFromVideoUrl(outputVideoUrl, slot, hint);
+      }
+      if (!dataUrl) {
+        useToast.getState().show("Could not extract frame", "error");
+        return;
+      }
+
+      const baseX =
+        sourceNode.position.x +
+        (typeof sourceNode.style?.width === "number" ? (sourceNode.style!.width as number) : 300) +
+        40;
+      const baseY = sourceNode.position.y;
+      const label = slot === "first" ? "first" : slot === "last" ? "last" : "current";
+
+      const newId = addNode(
+        "mediaInput",
+        { x: baseX, y: baseY },
+        {
+          mode: "image",
+          image: dataUrl,
+          filename: `frame-${label}.png`,
+        }
+      );
+
+      addEdgeWithType(
+        {
+          source: nodeId,
+          target: newId,
+          sourceHandle: "video",
+          targetHandle: "reference",
+        },
+        "reference"
+      );
+      setToolsOpen(false);
+      useToast.getState().show("Frame added as Upload node", "success");
+    },
+    [
+      addEdgeWithType,
+      addNode,
+      data?.outputVideo,
+      hasVideo,
+      nodeId,
+      nodes,
+      outputVideoUrl,
+      videoPreviewRef,
+    ]
+  );
 
   useEffect(() => {
     if (!toolsOpen) return;
@@ -58,6 +128,11 @@ export function GenerateVideoToolbar({ nodeId }: GenerateVideoToolbarProps) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [toolsOpen]);
+
+  if (!node) return null;
+
+  const stopProp = (e: React.MouseEvent | React.PointerEvent) =>
+    e.stopPropagation();
 
   return (
     <NodeToolbar
@@ -154,10 +229,21 @@ export function GenerateVideoToolbar({ nodeId }: GenerateVideoToolbarProps) {
                     <span className="flex-1">Extract frame</span>
                     <div className="ml-2 shrink-0">
                       <div className="flex gap-0.5">
-                        {["◀", "●", "▶"].map((icon, idx) => (
+                        {(
+                          [
+                            { icon: "◀", slot: "first" as const, title: "First frame" },
+                            { icon: "●", slot: "current" as const, title: "Current frame" },
+                            { icon: "▶", slot: "last" as const, title: "Last frame" },
+                          ] as const
+                        ).map(({ icon, slot, title }) => (
                           <button
-                            key={idx}
+                            key={slot}
                             type="button"
+                            title={title}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleExtractVideoFrame(slot);
+                            }}
                             className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] text-neutral-300 hover:bg-white/5 hover:text-white"
                           >
                             {icon}

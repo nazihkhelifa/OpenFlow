@@ -13,7 +13,6 @@ import {
   GenerateAudioNodeData,
   ImageCompareNodeData,
   EaseCurveNodeData,
-  VideoFrameGrabNodeData,
   RouterNodeData,
   SwitchNodeData,
   ConditionalSwitchNodeData,
@@ -43,7 +42,6 @@ export const defaultNodeDimensions: Record<NodeType, { width: number; height: nu
   generateAudio: { width: 300, height: 280 },
   imageCompare: { width: 400, height: 360 },
   easeCurve: { width: SQUARE_SIZE, height: SQUARE_SIZE },
-  videoFrameGrab: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   router: { width: 200, height: 80 },
   switch: { width: 220, height: 120 },
   conditionalSwitch: { width: 260, height: 180 },
@@ -232,13 +230,6 @@ export const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         progress: 0,
         encoderSupported: null,
       } as EaseCurveNodeData;
-    case "videoFrameGrab":
-      return {
-        framePosition: "first",
-        outputImage: null,
-        status: "idle",
-        error: null,
-      } as VideoFrameGrabNodeData;
     case "router":
       return {} as RouterNodeData;
     case "switch":

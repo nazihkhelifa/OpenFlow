@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { NodeToolbar, Position } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { useToast } from "@/components/Toast";
 import { splitWithDimensions } from "@/utils/gridSplitter";
+import {
+  extractFrameFromVideoElement,
+  extractFrameFromVideoUrl,
+  type VideoFrameExtractionSlot,
+} from "@/utils/extractVideoFrame";
 
 type UploadToolbarMode = "image" | "video";
 
@@ -15,6 +21,10 @@ interface UploadToolbarProps {
   onFullscreenClick?: () => void;
   /** When "video", show video-centric tools instead of image tools */
   mode?: UploadToolbarMode;
+  /** Live preview video element (upload node) — used for "current" frame and faster first/last */
+  videoPreviewRef?: RefObject<HTMLVideoElement | null>;
+  /** Stored video URL (data/blob/http) — fallback if the preview is not ready */
+  videoSourceUrl?: string | null;
 }
 
 export function UploadToolbar({
@@ -24,8 +34,10 @@ export function UploadToolbar({
   onDownloadClick,
   onFullscreenClick,
   mode = "image",
+  videoPreviewRef,
+  videoSourceUrl = null,
 }: UploadToolbarProps) {
-  const { addNode, updateNodeData, addEdgeWithType, nodes } = useWorkflowStore();
+  const { addNode, addEdgeWithType, nodes } = useWorkflowStore();
   const [toolsOpen, setToolsOpen] = useState(false);
   const handleSplitIntoGrid = async (rows: number, cols: number) => {
     if (!hasImage || mode !== "image") return;
@@ -80,6 +92,56 @@ export function UploadToolbar({
       // ignore split errors for now
     }
   };
+
+  const handleExtractVideoFrame = async (slot: VideoFrameExtractionSlot) => {
+    if (mode !== "video" || !hasImage) return;
+    const sourceNode = nodes.find((n) => n.id === nodeId);
+    if (!sourceNode) return;
+
+    const el = videoPreviewRef?.current ?? null;
+    let dataUrl: string | null = null;
+    if (el && el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      dataUrl = await extractFrameFromVideoElement(el, slot);
+    }
+    if (!dataUrl && videoSourceUrl) {
+      const hint = slot === "current" && el ? el.currentTime : undefined;
+      dataUrl = await extractFrameFromVideoUrl(videoSourceUrl, slot, hint);
+    }
+    if (!dataUrl) {
+      useToast.getState().show("Could not extract frame", "error");
+      return;
+    }
+
+    const baseX =
+      sourceNode.position.x +
+      (typeof sourceNode.style?.width === "number" ? (sourceNode.style!.width as number) : 300) +
+      40;
+    const baseY = sourceNode.position.y;
+    const label = slot === "first" ? "first" : slot === "last" ? "last" : "current";
+
+    const newId = addNode(
+      "mediaInput",
+      { x: baseX, y: baseY },
+      {
+        mode: "image",
+        image: dataUrl,
+        filename: `frame-${label}.png`,
+      }
+    );
+
+    addEdgeWithType(
+      {
+        source: nodeId,
+        target: newId,
+        sourceHandle: "video",
+        targetHandle: "reference",
+      },
+      "reference"
+    );
+    setToolsOpen(false);
+    useToast.getState().show("Frame added as Upload node", "success");
+  };
+
   const toolsRef = useRef<HTMLDivElement | null>(null);
 
   const stopProp = (e: React.SyntheticEvent) => {
@@ -364,7 +426,7 @@ export function UploadToolbar({
                     </div>
                   </button>
 
-                  {/* Extract frame (first / here / last) */}
+                  {/* Extract frame → new Upload (image), like split grid */}
                   <button
                     type="button"
                     className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
@@ -380,10 +442,21 @@ export function UploadToolbar({
                       <span className="flex-1">Extract frame</span>
                       <div className="ml-2 shrink-0">
                         <div className="flex gap-0.5">
-                          {["◀", "●", "▶"].map((icon, idx) => (
+                          {(
+                            [
+                              { icon: "◀", slot: "first" as const, title: "First frame" },
+                              { icon: "●", slot: "current" as const, title: "Current frame" },
+                              { icon: "▶", slot: "last" as const, title: "Last frame" },
+                            ] as const
+                          ).map(({ icon, slot, title }) => (
                             <button
-                              key={idx}
+                              key={slot}
                               type="button"
+                              title={title}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleExtractVideoFrame(slot);
+                              }}
                               className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] text-neutral-300 hover:bg-white/5 hover:text-white"
                             >
                               {icon}

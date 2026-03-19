@@ -1,6 +1,15 @@
 "use client";
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, type Ref } from "react";
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (ref == null) return;
+  if (typeof ref === "function") {
+    ref(value);
+  } else {
+    (ref as React.MutableRefObject<T | null>).current = value;
+  }
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -37,6 +46,8 @@ export interface NodeVideoPlayerProps {
   stopPropagation?: boolean;
   /** When true, hide progress bar and controls below video (compact inline display) */
   compact?: boolean;
+  /** Optional ref to the underlying video element (e.g. for toolbar frame extraction) */
+  forwardedVideoRef?: Ref<HTMLVideoElement | null>;
 }
 
 export function NodeVideoPlayer({
@@ -54,8 +65,16 @@ export function NodeVideoPlayer({
   className = "",
   stopPropagation = false,
   compact = false,
+  forwardedVideoRef,
 }: NodeVideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const setVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      videoRef.current = el;
+      assignRef(forwardedVideoRef, el);
+    },
+    [forwardedVideoRef]
+  );
   const progressBarRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [currentTime, setCurrentTime] = useState(0);
@@ -146,7 +165,7 @@ export function NodeVideoPlayer({
       {/* Checker pattern + video container */}
       <div className="alpha-checker-pattern relative flex-1 min-h-0 cursor-pointer overflow-hidden rounded-2xl">
         <video
-          ref={videoRef}
+          ref={setVideoRef}
           key={videoKey}
           src={src}
           preload="metadata"

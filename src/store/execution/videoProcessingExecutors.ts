@@ -1,11 +1,11 @@
 /**
  * Video Processing Executors
  *
- * Executors for easeCurve and videoFrameGrab nodes.
+ * Executors for easeCurve nodes.
  * Used by both executeWorkflow and regenerateNode.
  */
 
-import type { EaseCurveNodeData, VideoFrameGrabNodeData } from "@/types";
+import type { EaseCurveNodeData } from "@/types";
 import { revokeBlobUrl } from "@/store/utils/executionUtils";
 import type { NodeExecutionContext } from "./types";
 
@@ -136,117 +136,6 @@ export async function executeEaseCurve(ctx: NodeExecutionContext): Promise<void>
       status: "error",
       error: errorMessage,
       progress: 0,
-    });
-    throw err instanceof Error ? err : new Error(errorMessage);
-  }
-}
-
-/**
- * VideoFrameGrab: extracts the first or last frame from a video as a full-resolution PNG image.
- */
-export async function executeVideoFrameGrab(ctx: NodeExecutionContext): Promise<void> {
-  const { node, getConnectedInputs, updateNodeData } = ctx;
-  const nodeData = node.data as VideoFrameGrabNodeData;
-
-  updateNodeData(node.id, { status: "loading", error: null });
-
-  try {
-    const inputs = getConnectedInputs(node.id);
-
-    if (inputs.videos.length === 0) {
-      updateNodeData(node.id, {
-        status: "error",
-        error: "Connect a video input to extract a frame",
-      });
-      throw new Error("Connect a video input to extract a frame");
-    }
-
-    const videoUrl = inputs.videos[0];
-
-    // Create video element and seek to target frame
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.preload = "auto";
-    let blobUrl: string | null = null;
-
-    try {
-    const FRAME_EXTRACTION_TIMEOUT = 30_000; // 30 seconds
-    const outputImage = await new Promise<string>((resolve, reject) => {
-      let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-      const cleanup = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-
-      video.onloadedmetadata = () => {
-        // For "first" frame, seek to 0.001 (not exactly 0 to ensure a decoded frame)
-        // For "last" frame, seek to duration - small epsilon
-        const seekTime = nodeData.framePosition === "first"
-          ? 0.001
-          : Math.max(0, video.duration - 0.1);
-        video.currentTime = seekTime;
-
-        timeoutId = setTimeout(() => {
-          if (blobUrl) URL.revokeObjectURL(blobUrl);
-          reject(new Error("Frame extraction timed out"));
-        }, FRAME_EXTRACTION_TIMEOUT);
-      };
-
-      video.onseeked = () => {
-        cleanup();
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx2d = canvas.getContext("2d");
-          if (!ctx2d) {
-            reject(new Error("Could not get canvas 2d context"));
-            return;
-          }
-          ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const frameDataUrl = canvas.toDataURL("image/png");
-          resolve(frameDataUrl);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error("Frame extraction failed"));
-        }
-      };
-
-      video.onerror = () => {
-        cleanup();
-        reject(new Error("Failed to load video for frame extraction"));
-      };
-
-      // If data URL, convert to blob URL for better performance
-      if (videoUrl.startsWith("data:")) {
-        fetch(videoUrl)
-          .then((r) => r.blob())
-          .then((blob) => {
-            blobUrl = URL.createObjectURL(blob);
-            video.src = blobUrl;
-          })
-          .catch(() => {
-            video.src = videoUrl;
-          });
-      } else {
-        video.src = videoUrl;
-      }
-    });
-
-    updateNodeData(node.id, {
-      outputImage,
-      status: "complete",
-      error: null,
-    });
-    } finally {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Frame extraction failed";
-    updateNodeData(node.id, {
-      status: "error",
-      error: errorMessage,
     });
     throw err instanceof Error ? err : new Error(errorMessage);
   }

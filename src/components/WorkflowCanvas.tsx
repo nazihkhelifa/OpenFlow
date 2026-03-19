@@ -32,7 +32,6 @@ import {
   GenerateAudioNode,
   ImageCompareNode,
   EaseCurveNode,
-  VideoFrameGrabNode,
   RouterNode,
   SwitchNode,
   ConditionalSwitchNode,
@@ -75,7 +74,6 @@ const nodeTypes: NodeTypes = {
   generateAudio: GenerateAudioNode,
   imageCompare: ImageCompareNode,
   easeCurve: EaseCurveNode,
-  videoFrameGrab: VideoFrameGrabNode,
   router: RouterNode,
   switch: SwitchNode,
   conditionalSwitch: ConditionalSwitchNode,
@@ -137,8 +135,6 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
       return { inputs: ["image", "image-1"], outputs: [] };
     case "easeCurve":
       return { inputs: ["video", "easeCurve"], outputs: ["video", "easeCurve"] };
-    case "videoFrameGrab":
-      return { inputs: ["video"], outputs: ["image"] };
     case "router":
       return { inputs: ["image", "text", "video", "audio", "3d", "easeCurve", "generic-input"], outputs: ["image", "text", "video", "audio", "3d", "easeCurve", "generic-output"] };
     case "switch":
@@ -347,7 +343,6 @@ export function WorkflowCanvas() {
     generateAudio: 'Generate Audio',
     imageCompare: 'Image Compare',
     easeCurve: 'Ease Curve',
-    videoFrameGrab: 'Frame Grab',
     router: 'Router',
     switch: 'Switch',
     conditionalSwitch: 'Conditional Switch',
@@ -489,13 +484,13 @@ export function WorkflowCanvas() {
       if (sourceType === "video") {
         // Video source can ONLY connect to:
         // 1. generateVideo nodes (for video-to-video)
-        // 2. easeCurve / videoFrameGrab / router (processing or passthrough)
+        // 2. easeCurve / router (processing or passthrough)
         // 3. output nodes (for display)
         const targetNode = nodes.find((n) => n.id === connection.target);
         if (!targetNode) return false;
 
         const targetNodeType = targetNode.type;
-        if (targetNodeType === "generateVideo" || targetNodeType === "easeCurve" || targetNodeType === "videoFrameGrab" || targetNodeType === "router") {
+        if (targetNodeType === "generateVideo" || targetNodeType === "easeCurve" || targetNodeType === "router") {
           return true;
         }
         // Video cannot connect to other node types
@@ -1041,10 +1036,6 @@ export function WorkflowCanvas() {
           // EaseCurve accepts video input and outputs video
           targetHandleId = "video";
           sourceHandleIdForNewNode = "video";
-        } else if (nodeType === "videoFrameGrab") {
-          // VideoFrameGrab accepts video input and outputs image
-          targetHandleId = "video";
-          sourceHandleIdForNewNode = "image";
         } else if (nodeType === "generateVideo") {
           // GenerateVideo outputs video
           sourceHandleIdForNewNode = "video";

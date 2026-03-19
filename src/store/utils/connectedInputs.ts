@@ -16,7 +16,6 @@ import {
   Generate3DNodeData,
   GenerateAudioNodeData,
   EaseCurveNodeData,
-  VideoFrameGrabNodeData,
   PromptNodeData,
   GLBViewerNodeData,
   SwitchNodeData,
@@ -91,8 +90,6 @@ function getSourceOutput(
   } else if (sourceNode.type === "prompt") {
     const d = sourceNode.data as PromptNodeData;
     return { type: "text", value: d.outputText ?? null };
-  } else if (sourceNode.type === "videoFrameGrab") {
-    return { type: "image", value: (sourceNode.data as VideoFrameGrabNodeData).outputImage };
   } else if (sourceNode.type === "glbViewer") {
     return { type: "image", value: (sourceNode.data as GLBViewerNodeData).capturedImage };
   }

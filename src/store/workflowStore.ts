@@ -70,7 +70,6 @@ import {
   executeGenerate3D,
   executeGenerateAudio,
   executeEaseCurve,
-  executeVideoFrameGrab,
   executeGlbViewer,
   executeRouter,
   executeSwitch,
@@ -379,7 +378,7 @@ export { GROUP_COLORS } from "./utils/nodeDefaults";
 
 /** Node types whose output carries image data */
 const IMAGE_SOURCE_NODE_TYPES = new Set<string>([
-  "mediaInput", "imageInput", "annotation", "generateImage", "glbViewer", "videoFrameGrab",
+  "mediaInput", "imageInput", "annotation", "generateImage", "glbViewer",
 ]);
 
 /**
@@ -1163,9 +1162,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
           case "easeCurve":
             await executeEaseCurve(executionCtx);
             break;
-          case "videoFrameGrab":
-            await executeVideoFrameGrab(executionCtx);
-            break;
           case "router":
             await executeRouter(executionCtx);
             break;
@@ -1316,11 +1312,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
         set({ isRunning: false, currentNodeIds: [] });
         await logger.endSession();
         return;
-      } else if (node.type === "videoFrameGrab") {
-        await executeVideoFrameGrab(executionCtx);
-        set({ isRunning: false, currentNodeIds: [] });
-        await logger.endSession();
-        return;
       }
 
       // After regeneration, execute directly connected downstream consumer nodes
@@ -1441,9 +1432,6 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
           break;
         case "easeCurve":
           await executeEaseCurve(executionCtx);
-          break;
-        case "videoFrameGrab":
-          await executeVideoFrameGrab(executionCtx);
           break;
         case "router":
           await executeRouter(executionCtx);

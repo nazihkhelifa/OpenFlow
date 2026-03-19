@@ -86,14 +86,6 @@ export function collectMediaItems(nodes: Node[]): MediaItem[] {
       }
     }
 
-    // VideoFrameGrabNode: outputImage
-    if (node.type === "videoFrameGrab") {
-      const outputImage = data.outputImage as string | null | undefined;
-      if (outputImage && isDisplayableUrl(outputImage)) {
-        mediaItems.push({ url: outputImage, type: "image", nodeId: node.id });
-      }
-    }
-
   });
 
   return mediaItems;

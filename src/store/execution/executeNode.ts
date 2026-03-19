@@ -16,7 +16,7 @@ import {
 import { executeNanoBanana } from "./nanoBananaExecutor";
 import { executeGenerateVideo } from "./generateVideoExecutor";
 import { executeGenerate3D } from "./generate3dExecutor";
-import { executeEaseCurve, executeVideoFrameGrab } from "./videoProcessingExecutors";
+import { executeEaseCurve } from "./videoProcessingExecutors";
 import { executeGenerateAudio } from "./generateAudioExecutor";
 
 export interface ExecuteNodeOptions {
@@ -73,9 +73,6 @@ export async function executeNode(
       break;
     case "generateAudio":
       await executeGenerateAudio(ctx, regenOpts);
-      break;
-    case "videoFrameGrab":
-      await executeVideoFrameGrab(ctx);
       break;
   }
 }

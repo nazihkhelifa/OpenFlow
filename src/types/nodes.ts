@@ -58,7 +58,6 @@ export type NodeType =
   | "generateAudio"
   | "imageCompare"
   | "easeCurve"
-  | "videoFrameGrab"
   | "router"
   | "switch"
   | "conditionalSwitch"
@@ -301,16 +300,6 @@ export interface EaseCurveNodeData extends BaseNodeData {
 }
 
 /**
- * Video Frame Grab node - extracts the first or last frame from a video as a full-resolution PNG image
- */
-export interface VideoFrameGrabNodeData extends BaseNodeData {
-  framePosition: "first" | "last";   // Which frame to extract
-  outputImage: string | null;        // Extracted frame as base64 PNG data URL
-  status: NodeStatus;
-  error: string | null;
-}
-
-/**
  * Router node - pure passthrough routing node with dynamic multi-type handles
  */
 export interface RouterNodeData extends BaseNodeData {
@@ -401,7 +390,6 @@ export type WorkflowNodeData =
   | GenerateAudioNodeData
   | ImageCompareNodeData
   | EaseCurveNodeData
-  | VideoFrameGrabNodeData
   | RouterNodeData
   | SwitchNodeData
   | ConditionalSwitchNodeData

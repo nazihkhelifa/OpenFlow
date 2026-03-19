@@ -30,7 +30,6 @@ export const ALL_NODES_CATEGORIES: {
     nodes: [
       { type: "annotation", label: "Layer Editor" },
       { type: "easeCurve", label: "Ease Curve" },
-      { type: "videoFrameGrab", label: "Frame Grab" },
       { type: "imageCompare", label: "Image Compare" },
     ],
   },

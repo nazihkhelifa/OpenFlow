@@ -24,7 +24,6 @@ const VALID_NODE_TYPES: NodeType[] = [
   "generateAudio",
   "imageCompare",
   "easeCurve",
-  "videoFrameGrab",
   "router",
   "switch",
   "conditionalSwitch",
@@ -46,7 +45,6 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { width: number; height: number }> = 
   generateAudio: { width: 300, height: 280 },
   imageCompare: { width: 400, height: 360 },
   easeCurve: { width: SQUARE_SIZE, height: SQUARE_SIZE },
-  videoFrameGrab: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   router: { width: 200, height: 80 },
   switch: { width: 220, height: 120 },
   conditionalSwitch: { width: 260, height: 180 },
@@ -317,13 +315,6 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         error: null,
         progress: 0,
         encoderSupported: null,
-      };
-    case "videoFrameGrab":
-      return {
-        framePosition: "first",
-        outputImage: null,
-        status: "idle",
-        error: null,
       };
     case "router":
       return {};

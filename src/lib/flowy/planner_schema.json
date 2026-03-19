@@ -12,7 +12,6 @@
     "generateAudio",
     "imageCompare",
     "easeCurve",
-    "videoFrameGrab",
     "router",
     "switch",
     "conditionalSwitch",

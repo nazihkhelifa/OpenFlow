@@ -61,6 +61,7 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
   const [isBrowseDialogOpen, setIsBrowseDialogOpen] = useState(false);
   const [isLoadingCarouselVideo, setIsLoadingCarouselVideo] = useState(false);
   const [isPromptFocused, setIsPromptFocused] = useState(false);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const videoBlobUrl = useVideoBlobUrl(nodeData.outputVideo ?? null);
 
   const { hasPromptConnection, promptDisplayValue } = useWorkflowStore(
@@ -430,7 +431,11 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
 
   return (
     <>
-  <GenerateVideoToolbar nodeId={id} />
+  <GenerateVideoToolbar
+      nodeId={id}
+      videoPreviewRef={videoPreviewRef}
+      outputVideoUrl={nodeData.outputVideo ?? null}
+    />
     <BaseNode
       id={id}
       selected={selected}
@@ -663,6 +668,7 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
             objectFit="cover"
             compact
             className="w-full h-full"
+            forwardedVideoRef={videoPreviewRef}
             actions={
               <>
                 <MediaExpandButton nodeId={id} mediaUrl={nodeData.outputVideo} mediaType="video" className="w-5 h-5 bg-neutral-900/80 hover:bg-neutral-700 rounded flex items-center justify-center text-neutral-400 hover:text-white transition-colors" />

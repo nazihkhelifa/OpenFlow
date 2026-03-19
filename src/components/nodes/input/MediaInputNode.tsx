@@ -133,6 +133,7 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
   const [isInteracting, setIsInteracting] = useState(false);
   const glbCaptureRef = useRef<(() => string | null) | null>(null);
   const glbViewportRef = useRef<HTMLDivElement>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
   // Revoke GLB blob URL on unmount or change
   useEffect(() => {
@@ -452,6 +453,8 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
           onDownloadClick={undefined}
           onFullscreenClick={handleFullscreen}
           mode={mode === "video" ? "video" : "image"}
+          videoPreviewRef={videoPreviewRef}
+          videoSourceUrl={mode === "video" ? nodeData.videoFile ?? null : null}
         />
       )}
       <BaseNode
@@ -554,6 +557,7 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
                 muted={true}
                 objectFit="cover"
                 compact
+                forwardedVideoRef={videoPreviewRef}
               />
             </div>
           ) : null}
