@@ -7,6 +7,14 @@ export interface FileProject {
   thumbnail?: string;
 }
 
+export interface FolderItem {
+  id: string;
+  name: string;
+  path: string;
+  updatedAt: string;
+  projectsCount: number;
+}
+
 export function isFileProjectId(id: string): boolean {
   try {
     const decoded = decodeURIComponent(id);

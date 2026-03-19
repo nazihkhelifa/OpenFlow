@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     });
 
     const projects: { id: string; path: string; name: string; updatedAt: string; thumbnail?: string }[] = [];
+    const folders: { id: string; path: string; name: string; updatedAt: string; projectsCount: number }[] = [];
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
       let workflowName = entry.name;
       let mtime: Date | null = null;
       let thumbnail: string | undefined;
+      let projectFilesCount = 0;
 
       try {
         const files = await fs.readdir(subDirPath);
@@ -49,6 +51,7 @@ export async function GET(request: NextRequest) {
             const filePath = path.join(subDirPath, file);
             const stats = await fs.stat(filePath);
             if (stats.isFile()) {
+              projectFilesCount += 1;
               workflowFile = filePath;
               mtime = stats.mtime;
               try {
@@ -75,6 +78,21 @@ export async function GET(request: NextRequest) {
           updatedAt: mtime.toISOString(),
           thumbnail: thumbnail || "/thumbnail.jpeg",
         });
+      } else {
+        let folderMtime = new Date(0);
+        try {
+          const stats = await fs.stat(subDirPath);
+          folderMtime = stats.mtime;
+        } catch {
+          // keep epoch fallback
+        }
+        folders.push({
+          id: encodeURIComponent(subDirPath),
+          path: subDirPath,
+          name: entry.name,
+          updatedAt: folderMtime.toISOString(),
+          projectsCount: projectFilesCount,
+        });
       }
     }
 
@@ -82,9 +100,16 @@ export async function GET(request: NextRequest) {
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
+    folders.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
     return NextResponse.json({
       success: true,
+      basePath: pathValidation.resolved,
+      parentPath: path.dirname(pathValidation.resolved),
+      folders,
       projects,
     });
   } catch (error) {
@@ -92,6 +117,9 @@ export async function GET(request: NextRequest) {
     if (err?.code === "ENOENT") {
       return NextResponse.json({
         success: true,
+        basePath: pathValidation.resolved,
+        parentPath: path.dirname(pathValidation.resolved),
+        folders: [],
         projects: [],
       });
     }

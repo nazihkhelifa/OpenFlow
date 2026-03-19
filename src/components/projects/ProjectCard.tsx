@@ -1,7 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useState } from "react";
+import { CheckSquare, MoreVertical, Pencil, Square, Trash2, FolderInput } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { LocalProject } from "@/lib/local-db";
 import type { FileProject } from "@/lib/project-types";
@@ -11,15 +11,25 @@ import { formatRelativeTime } from "@/lib/relative-time";
 type ProjectCardProps = {
   project: LocalProject | FileProject;
   onDelete: () => void;
-  showDelete?: boolean;
+  onRename?: () => void;
+  onMove?: () => void;
+  onToggleSelect?: () => void;
+  isSelected?: boolean;
+  compact?: boolean;
 };
 
 export function ProjectCard({
   project,
   onDelete,
-  showDelete = true,
+  onRename,
+  onMove,
+  onToggleSelect,
+  isSelected = false,
+  compact = false,
 }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const thumbnail =
     "content" in project
@@ -40,6 +50,17 @@ export function ProjectCard({
       onDelete();
     }
   };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [menuOpen]);
 
   const cardVisual = (
     <div className="relative h-full w-full">
@@ -87,30 +108,76 @@ export function ProjectCard({
     </div>
   );
 
+  if (compact) {
+    return (
+      <div className="relative flex items-center justify-between px-4 py-3 hover:bg-white/5">
+        <Link href={`/projects/${project.id}`} className="min-w-0 flex-1">
+          <p className="truncate text-sm text-white">{name}</p>
+          {subtitle && <p className="mt-0.5 text-xs text-white/70">{subtitle}</p>}
+        </Link>
+        <div ref={menuRef} className="relative ml-3">
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-white/80 hover:bg-black/30 hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((open) => !open);
+            }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-40 mt-1 min-w-40 rounded-xl border border-white/10 bg-[#1c1c1c] p-1 shadow-xl">
+              <Link href={`/projects/${project.id}`} className="block rounded-lg px-2 py-2 text-xs text-white hover:bg-white/10">Open</Link>
+              {onRename && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onRename(); setMenuOpen(false); }}><Pencil className="h-3.5 w-3.5" />Rename</button>}
+              {onToggleSelect && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onToggleSelect(); setMenuOpen(false); }}>{isSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}{isSelected ? "Unselect" : "Select"}</button>}
+              {onMove && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onMove(); setMenuOpen(false); }}><FolderInput className="h-3.5 w-3.5" />Move to folder</button>}
+              <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-red-300 hover:bg-red-500/20" onClick={(e) => { handleDeleteClick(e); setMenuOpen(false); }}><Trash2 className="h-3.5 w-3.5" />Delete</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`relative cursor-pointer group rounded-md overflow-hidden bg-[#1c1c1c] ${aspectClass}`}
+      className={`relative cursor-pointer group rounded-md overflow-visible bg-[#1c1c1c] ${aspectClass}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/projects/${project.id}`} className="block h-full w-full">
+      <Link href={`/projects/${project.id}`} className="block h-full w-full overflow-hidden rounded-md">
         {cardVisual}
       </Link>
 
-      {showDelete && (
+      <div
+        ref={menuRef}
+        className="absolute top-3 right-3 z-20 transition-opacity duration-200"
+        style={{ opacity: isHovered || menuOpen ? 1 : 0 }}
+      >
         <button
           type="button"
-          className="absolute top-4 right-4 z-20 transition-opacity duration-200"
-          style={{ opacity: isHovered ? 1 : 0 }}
-          onClick={handleDeleteClick}
-          title="Delete"
+          className="rounded-full bg-black/30 p-1.5 text-white/80 backdrop-blur-sm hover:bg-black/60 hover:text-white"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((open) => !open);
+          }}
+          title="Actions"
         >
-          <X
-            className="w-8 h-8 text-white/80 hover:text-white transition-colors bg-black/30 rounded-full p-1.5 backdrop-blur-sm hover:bg-red-500/80"
-            strokeWidth={2}
-          />
+          <MoreVertical className="h-4 w-4" />
         </button>
-      )}
+        {menuOpen && (
+          <div className="absolute right-0 top-full z-50 mt-1 min-w-44 rounded-xl border border-white/10 bg-[#1c1c1c] p-1 shadow-xl">
+            <Link href={`/projects/${project.id}`} className="block rounded-lg px-2 py-2 text-xs text-white hover:bg-white/10">Open project</Link>
+            {onRename && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onRename(); setMenuOpen(false); }}><Pencil className="h-3.5 w-3.5" />Rename</button>}
+            {onToggleSelect && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onToggleSelect(); setMenuOpen(false); }}>{isSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}{isSelected ? "Unselect project" : "Select project"}</button>}
+            {onMove && <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-white hover:bg-white/10" onClick={() => { onMove(); setMenuOpen(false); }}><FolderInput className="h-3.5 w-3.5" />Move to folder</button>}
+            <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-red-300 hover:bg-red-500/20" onClick={(e) => { handleDeleteClick(e); setMenuOpen(false); }}><Trash2 className="h-3.5 w-3.5" />Delete</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
