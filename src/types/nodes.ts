@@ -449,6 +449,8 @@ export interface LLMNodeDefaults {
 
 export interface NodeDefaultsConfig {
   generateImage?: GenerateImageNodeDefaults;
+  /** Dedicated defaults for image-upscale actions (tool-triggered). */
+  generateImageUpscale?: GenerateImageNodeDefaults;
   generateVideo?: GenerateVideoNodeDefaults;
   generate3d?: Generate3DNodeDefaults;
   generateAudio?: GenerateAudioNodeDefaults;

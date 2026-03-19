@@ -11,6 +11,7 @@ import {
   extractFrameFromVideoUrl,
   type VideoFrameExtractionSlot,
 } from "@/utils/extractVideoFrame";
+import { loadNodeDefaults } from "@/store/utils/localStorage";
 
 type UploadToolbarMode = "image" | "video";
 
@@ -38,8 +39,70 @@ export function UploadToolbar({
   videoPreviewRef,
   videoSourceUrl = null,
 }: UploadToolbarProps) {
-  const { addNode, addEdgeWithType, nodes } = useWorkflowStore();
+  const { addNode, addEdgeWithType, nodes, executeSelectedNodes } = useWorkflowStore();
   const [toolsOpen, setToolsOpen] = useState(false);
+
+  const resolveUpscaleModel = () => {
+    const cfg = loadNodeDefaults();
+    const upscale = cfg.generateImageUpscale;
+    const models = upscale?.selectedModels?.length
+      ? upscale.selectedModels
+      : upscale?.selectedModel
+        ? [upscale.selectedModel]
+        : [];
+    const idx = upscale?.defaultModelIndex ?? 0;
+    return models[idx] ?? models[0] ?? null;
+  };
+
+  const handleUpscaleImage = async () => {
+    if (!hasImage || mode !== "image") return;
+    const sourceNode = nodes.find((n) => n.id === nodeId);
+    if (!sourceNode) return;
+    const sourceData = sourceNode.data as { image?: string | null };
+    const sourceImage = sourceData.image ?? null;
+    if (!sourceImage) return;
+
+    const selectedModel = resolveUpscaleModel();
+    if (!selectedModel) {
+      useToast.getState().show("Set Default Image Upscale Models in Node Defaults first", "error");
+      return;
+    }
+
+    const baseX =
+      sourceNode.position.x +
+      (typeof sourceNode.style?.width === "number" ? (sourceNode.style.width as number) : 300) +
+      80;
+    const baseY = sourceNode.position.y;
+
+    const newId = addNode(
+      "generateImage",
+      { x: baseX, y: baseY },
+      {
+        customTitle: "Upscale",
+        inputImages: [sourceImage],
+        inputPrompt: "Upscale this image and preserve details.",
+        selectedModel,
+      }
+    );
+
+    addEdgeWithType(
+      {
+        source: nodeId,
+        target: newId,
+        sourceHandle: "image",
+        targetHandle: "image",
+      },
+      "image"
+    );
+
+    setToolsOpen(false);
+    useToast.getState().show("Upscale node added", "success");
+    try {
+      await executeSelectedNodes([newId]);
+    } catch {
+      useToast.getState().show("Upscale run failed to start", "error");
+    }
+  };
   const handleSplitIntoGrid = async (rows: number, cols: number) => {
     if (!hasImage || mode !== "image") return;
 
@@ -246,6 +309,7 @@ export function UploadToolbar({
                   {/* Upscale */}
                   <button
                     type="button"
+                    onClick={() => { void handleUpscaleImage(); }}
                     className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
                   >
                     <div className="flex flex-1 items-center gap-2">

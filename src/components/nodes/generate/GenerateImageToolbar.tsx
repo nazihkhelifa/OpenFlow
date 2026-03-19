@@ -14,6 +14,7 @@ import type {
 import { ProviderBadge } from "../shared/ProviderBadge";
 import { loadNodeDefaults } from "@/store/utils/localStorage";
 import { getProviderDisplayName } from "@/utils/providerUrls";
+import { useToast } from "@/components/Toast";
 
 // Local copies of the Gemini image model + ratio/resolution presets
 const GEMINI_IMAGE_MODELS: { value: ModelType; label: string }[] = [
@@ -66,6 +67,7 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const addNode = useWorkflowStore((state) => state.addNode);
   const addEdgeWithType = useWorkflowStore((state) => state.addEdgeWithType);
+  const executeSelectedNodes = useWorkflowStore((state) => state.executeSelectedNodes);
   const nodes = useWorkflowStore((state) => state.nodes);
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement | null>(null);
@@ -143,6 +145,19 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
     return { defaultImageModels: models, defaultModelIndex: idx };
   }, []);
 
+  const { defaultUpscaleModels, defaultUpscaleModelIndex } = useMemo(() => {
+    const cfg = loadNodeDefaults();
+    const d = cfg.generateImageUpscale;
+    const models =
+      d?.selectedModels?.length
+        ? d.selectedModels
+        : d?.selectedModel
+          ? [d.selectedModel]
+          : [];
+    const idx = Math.min(d?.defaultModelIndex ?? 0, Math.max(0, models.length - 1));
+    return { defaultUpscaleModels: models, defaultUpscaleModelIndex: idx };
+  }, []);
+
   const {
     provider,
     modelId,
@@ -189,6 +204,49 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
   }, [data]);
 
   if (!node || !data) return null;
+
+  const handleUpscaleImage = async () => {
+    if (!hasImage || !data.outputImage) return;
+    const selectedModel = defaultUpscaleModels[defaultUpscaleModelIndex] ?? null;
+    if (!selectedModel) {
+      useToast.getState().show("Set Default Image Upscale Models in Node Defaults first", "error");
+      return;
+    }
+    const baseX =
+      node.position.x +
+      (typeof node.style?.width === "number" ? (node.style.width as number) : 300) +
+      80;
+    const baseY = node.position.y;
+
+    const newId = addNode(
+      "generateImage",
+      { x: baseX, y: baseY },
+      {
+        customTitle: "Upscale",
+        inputImages: [data.outputImage],
+        inputPrompt: "Upscale this image and preserve details.",
+        selectedModel,
+      }
+    );
+
+    addEdgeWithType(
+      {
+        source: nodeId,
+        target: newId,
+        sourceHandle: "image",
+        targetHandle: "image",
+      },
+      "image"
+    );
+
+    setToolsOpen(false);
+    useToast.getState().show("Upscale node added", "success");
+    try {
+      await executeSelectedNodes([newId]);
+    } catch {
+      useToast.getState().show("Upscale run failed to start", "error");
+    }
+  };
 
   const stopProp = (e: React.MouseEvent | React.PointerEvent) =>
     e.stopPropagation();
@@ -416,7 +474,7 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
             {toolsOpen && hasImage && (
               <div className="absolute left-0 top-full mt-1 z-50 flex min-w-52 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900/95 p-1 text-[11px] text-neutral-100 shadow-xl backdrop-blur-lg">
                 {/* Image tools menu (UI only, mirrors upload node) */}
-                <button type="button" className="relative flex h-9 items-center rounded-xl p-2 hover:bg-white/5">
+                <button type="button" onClick={() => { void handleUpscaleImage(); }} className="relative flex h-9 items-center rounded-xl p-2 hover:bg-white/5">
                   <div className="flex flex-1 items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
                       <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="text-neutral-200">
