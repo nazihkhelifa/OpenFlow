@@ -39,6 +39,8 @@ type FlowyPlanResponse = {
   approvalReason?: string;
   executeNodeIds?: string[];
   runApprovalRequired?: boolean;
+  /** `chat` = conversational reply only (no canvas ops). `plan` = edit operations (may be empty). */
+  mode?: "chat" | "plan";
 };
 
 type ChatMsg = {
@@ -74,6 +76,7 @@ export function FlowyAgentPanel({
   const [pendingRunApprovalRequired, setPendingRunApprovalRequired] = useState<boolean>(true);
   const [executionIndex, setExecutionIndex] = useState<number>(0);
   const [applyMode, setApplyMode] = useState<"manual" | "auto">("manual");
+  const [autoContinue, setAutoContinue] = useState<boolean>(false);
   const [mentionedNodeIds, setMentionedNodeIds] = useState<string[]>([]);
   const [isNodePickerOpen, setIsNodePickerOpen] = useState(false);
   const [nodePickerQuery, setNodePickerQuery] = useState("");
@@ -85,6 +88,8 @@ export function FlowyAgentPanel({
   const [isExecutingStep, setIsExecutingStep] = useState(false);
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
+  const lastGoalRef = useRef<string | null>(null);
+  const autoContinueCountRef = useRef<number>(0);
 
   const stateForRequest = useMemo(() => {
     // Ensure we always send a consistent shape.
@@ -141,67 +146,89 @@ export function FlowyAgentPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  const requestPlan = useCallback(
+    async (message: string, opts?: { suppressUserEcho?: boolean }) => {
+      const trimmed = message.trim();
+      if (!trimmed || isPlanning) return;
+
+      setErrorMessage(null);
+      setIsPlanning(true);
+
+      if (!opts?.suppressUserEcho) {
+        const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+        setChatMessages((prev) => [...prev, userMsg]);
+      }
+
+      try {
+        const res = await fetch("/api/flowy/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: trimmed,
+            workflowState: stateForRequest,
+            selectedNodeIds: contextNodeIds,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || `Plan failed (${res.status})`);
+        }
+
+        const data = (await res.json()) as ({ ok: boolean; error?: string } & FlowyPlanResponse) & {
+          debugLastText?: string;
+        };
+        if (!data.ok) {
+          const debugSnippet =
+            typeof data.debugLastText === "string" && data.debugLastText.trim().length
+              ? `\n\nLLM output (truncated):\n${data.debugLastText.slice(0, 800)}`
+              : "";
+          throw new Error((data.error || "Plan failed") + debugSnippet);
+        }
+
+        const assistantText = data.assistantText ?? "";
+        const ops = data.operations ?? [];
+        const mode: "chat" | "plan" = data.mode === "chat" ? "chat" : "plan";
+
+        if (mode === "chat") {
+          setPendingOperations(null);
+          setPendingExplanation(null);
+          setPendingExecuteNodeIds(null);
+          setPendingRunApprovalRequired(true);
+          setExecutionIndex(0);
+          autoRunCompletedRef.current = true;
+        } else {
+          setPendingOperations(ops);
+          setPendingExplanation(assistantText);
+          setExecutionIndex(0);
+          setPendingExecuteNodeIds(data.executeNodeIds ?? null);
+          setPendingRunApprovalRequired(data.runApprovalRequired ?? true);
+          autoRunCompletedRef.current = false;
+        }
+        setCursor((c) => ({ ...c, visible: false }));
+        setChatMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: "assistant", text: assistantText },
+        ]);
+
+        scrollToBottom();
+      } catch (e) {
+        setErrorMessage(e instanceof Error ? e.message : "Failed to plan edits");
+      } finally {
+        setIsPlanning(false);
+      }
+    },
+    [contextNodeIds, isPlanning, scrollToBottom, stateForRequest]
+  );
+
   const handlePlan = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isPlanning) return;
-
-    setErrorMessage(null);
-    setIsPlanning(true);
-
-    const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text: trimmed };
-    setChatMessages((prev) => [...prev, userMsg]);
+    if (!trimmed) return;
+    lastGoalRef.current = trimmed;
+    autoContinueCountRef.current = 0;
     setInput("");
-
-    try {
-      const res = await fetch("/api/flowy/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: trimmed,
-          workflowState: stateForRequest,
-          selectedNodeIds: contextNodeIds,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || `Plan failed (${res.status})`);
-      }
-
-      const data = (await res.json()) as ({ ok: boolean; error?: string } & FlowyPlanResponse) & {
-        debugLastText?: string;
-      };
-      if (!data.ok) {
-        const debugSnippet =
-          typeof data.debugLastText === "string" && data.debugLastText.trim().length
-            ? `\n\nLLM output (truncated):\n${data.debugLastText.slice(0, 800)}`
-            : "";
-        throw new Error((data.error || "Plan failed") + debugSnippet);
-      }
-
-      const assistantText = data.assistantText ?? "";
-      const ops = data.operations ?? [];
-
-      setPendingOperations(ops);
-      setPendingExplanation(assistantText);
-      setExecutionIndex(0);
-      setPendingExecuteNodeIds(data.executeNodeIds ?? null);
-      setPendingRunApprovalRequired(data.runApprovalRequired ?? true);
-      autoRunCompletedRef.current = false;
-      setCursor((c) => ({ ...c, visible: false }));
-      setChatMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", text: assistantText },
-      ]);
-
-      // Assist mode: always propose first.
-      scrollToBottom();
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : "Failed to plan edits");
-    } finally {
-      setIsPlanning(false);
-    }
-  }, [input, isPlanning, contextNodeIds, scrollToBottom, stateForRequest]);
+    await requestPlan(trimmed);
+  }, [input, requestPlan]);
 
   const handleApprove = useCallback(() => {
     // Keep for backward compatibility if a parent triggers bulk apply.
@@ -377,8 +404,23 @@ export function FlowyAgentPanel({
     // Auto-run after all edits applied
     (async () => {
       await onRunNodeIds(pendingExecuteNodeIds);
+
+      // Optional: continue the agent loop by planning the next minimal stage
+      // using the updated workflowState (now containing status/error/output fields).
+      if (!autoContinue) return;
+      const goal = lastGoalRef.current;
+      if (!goal) return;
+      if (autoContinueCountRef.current >= 3) return;
+      autoContinueCountRef.current += 1;
+
+      await requestPlan(
+        `Continue the workflow toward the original user goal: "${goal}". ` +
+          `Inspect the current workflow execution results (node status/error/output fields) and plan the next minimal stage. ` +
+          `If the goal is already complete, return empty operations and explain completion.`,
+        { suppressUserEcho: true }
+      );
     })();
-  }, [applyMode, executionIndex, onRunNodeIds, pendingExecuteNodeIds, pendingOperations]);
+  }, [applyMode, autoContinue, executionIndex, onRunNodeIds, pendingExecuteNodeIds, pendingOperations, requestPlan]);
 
   // Auto-apply mode: run through all pending operations sequentially.
   useEffect(() => {
@@ -505,6 +547,17 @@ export function FlowyAgentPanel({
                   >
                     Auto
                   </button>
+
+                  <label className="ml-2 flex items-center gap-1.5 text-[11px] text-neutral-400 select-none">
+                    <input
+                      type="checkbox"
+                      className="accent-green-500"
+                      checked={autoContinue}
+                      onChange={(e) => setAutoContinue(e.target.checked)}
+                      disabled={applyMode !== "auto"}
+                    />
+                    Continue
+                  </label>
                 </div>
 
                 <div className="text-xs text-neutral-300">

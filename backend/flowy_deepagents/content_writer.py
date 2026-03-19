@@ -5,6 +5,7 @@ import functools
 import json
 import os
 import sys
+from collections import Counter
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage  # type: ignore
@@ -162,6 +163,81 @@ def _build_system_prompt() -> str:
     return agents_md
 
 
+def _build_workflow_brief_for_router(
+    workflow_state: Dict[str, Any], selected_node_ids: List[str]
+) -> Dict[str, Any]:
+    """Small summary for intent routing (no heavy node data)."""
+    nodes = [n for n in (workflow_state.get("nodes") or []) if isinstance(n, dict)]
+    edges = [e for e in (workflow_state.get("edges") or []) if isinstance(e, dict)]
+    types = [str(n.get("type") or "unknown") for n in nodes]
+    type_counts: Dict[str, int] = dict(Counter(types).most_common(24))
+    sample: List[Dict[str, Any]] = []
+    for n in nodes[:56]:
+        nid = n.get("id")
+        if nid:
+            sample.append({"id": str(nid), "type": n.get("type")})
+    groups = workflow_state.get("groups")
+    group_count = len(groups) if isinstance(groups, dict) else 0
+    return {
+        "nodeCount": len(nodes),
+        "edgeCount": len(edges),
+        "groupCount": group_count,
+        "selectedNodeIds": list(selected_node_ids),
+        "nodeTypeCounts": type_counts,
+        "nodesSample": sample,
+        "nodesSampleIsPartial": len(nodes) > len(sample),
+    }
+
+
+def _classify_user_intent(
+    router_model: Any,
+    message: str,
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+) -> Optional[Dict[str, Any]]:
+    """
+    LLM router: conversation vs canvas_edit.
+    Returns None if routing should be skipped / failed (caller falls back to planning).
+    """
+    msg = (message or "").strip()
+    if not msg:
+        return None
+
+    router_md = _read_text_file("ROUTER.md").strip()
+    if not router_md:
+        return None
+
+    brief = _build_workflow_brief_for_router(workflow_state, selected_node_ids)
+    user = (
+        f"UserMessage:\n{msg}\n\nWorkflowBrief (JSON):\n"
+        f"{json.dumps(brief, ensure_ascii=False)}\n\nReturn ONLY the JSON object."
+    )
+    try:
+        resp = router_model.invoke(
+            [SystemMessage(content=router_md), HumanMessage(content=user)],
+            response_format={"type": "json_object"},
+        )
+    except Exception:
+        return None
+
+    raw = str(getattr(resp, "content", "") or "")
+    try:
+        data = json.loads(raw)
+    except Exception:
+        data = _safe_extract_first_json_object(raw)
+    if not isinstance(data, dict):
+        return None
+
+    intent = str(data.get("intent") or "").strip().lower()
+    reply = data.get("reply")
+    if intent not in {"conversation", "canvas_edit"}:
+        return None
+    out: Dict[str, Any] = {"intent": intent, "reason": data.get("reason")}
+    if isinstance(reply, str):
+        out["reply"] = reply
+    return out
+
+
 def _build_user_prompt(message: str, workflow_state: Dict[str, Any], selected_node_ids: List[str]) -> str:
     try:
         hops = int(os.environ.get("FLOWY_CONTEXT_NEIGHBOR_HOPS", "2"))
@@ -212,11 +288,49 @@ def main() -> None:
             )
             return
 
+        planner_model_name = os.environ.get("FLOWY_PLANNER_MODEL", "gpt-4.1-mini")
+        router_model_name = os.environ.get("FLOWY_ROUTER_MODEL", planner_model_name)
+
         model = ChatOpenAI(
             api_key=openai_key,
-            model="gpt-4.1-mini",
+            model=planner_model_name,
             temperature=0.2,
         )
+        router_model = ChatOpenAI(
+            api_key=openai_key,
+            model=router_model_name,
+            temperature=0.1,
+        )
+
+        skip_router = os.environ.get("FLOWY_SKIP_INTENT_ROUTER", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if not skip_router:
+            route = _classify_user_intent(router_model, message, workflow_state, selected_node_ids)
+            if route and route.get("intent") == "conversation":
+                reply_text = route.get("reply")
+                if not isinstance(reply_text, str) or not reply_text.strip():
+                    reply_text = (
+                        "Here’s a quick answer. If you want me to change the canvas, say what to add, "
+                        "connect, or run."
+                    )
+                sys.stdout.write(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "mode": "chat",
+                            "assistantText": reply_text.strip(),
+                            "operations": [],
+                            "requiresApproval": False,
+                            "approvalReason": "",
+                            "runApprovalRequired": False,
+                        }
+                    )
+                )
+                return
+
         system_prompt = _build_system_prompt()
 
         parsed: Dict[str, Any] = {}
@@ -285,6 +399,7 @@ def main() -> None:
 
         out: Dict[str, Any] = {
             "ok": ok,
+            "mode": "plan",
             "assistantText": parsed.get("assistantText", ""),
             "operations": parsed.get("operations", []),
             "requiresApproval": True,

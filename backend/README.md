@@ -28,6 +28,9 @@ Requirements:
 | Variable | Purpose |
 |----------|---------|
 | `FLOWY_PYTHON` | Absolute path to `python` / `python.exe` (skips venv / `uv run` detection) |
+| `FLOWY_SKIP_INTENT_ROUTER` | Set to `1` / `true` to always run the canvas planner (no conversational shortcut) |
+| `FLOWY_ROUTER_MODEL` | OpenAI model id for intent routing (defaults to planner model) |
+| `FLOWY_PLANNER_MODEL` | OpenAI model id for edit planning (default `gpt-4.1-mini`) |
 
 ## MCP server (optional)
 
