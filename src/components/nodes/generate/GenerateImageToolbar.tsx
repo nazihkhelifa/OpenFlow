@@ -487,7 +487,7 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
                   </div>
                 </button>
 
-                <button type="button" className="relative flex h-9 items-center rounded-xl p-2 hover:bg-white/5">
+                <button type="button" disabled className="relative flex h-9 items-center rounded-xl p-2 opacity-60 cursor-not-allowed">
                   <div className="flex flex-1 items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -499,7 +499,7 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
                   </div>
                 </button>
 
-                <button type="button" className="relative flex h-9 items-center rounded-xl p-2 hover:bg-white/5">
+                <button type="button" disabled className="relative flex h-9 items-center rounded-xl p-2 opacity-60 cursor-not-allowed">
                   <div className="flex flex-1 items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -517,7 +517,7 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
                   </div>
                 </button>
 
-                <button type="button" className="relative flex h-9 items-center rounded-xl p-2 hover:bg-white/5">
+                <button type="button" disabled className="relative flex h-9 items-center rounded-xl p-2 opacity-60 cursor-not-allowed">
                   <div className="flex flex-1 items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -546,7 +546,8 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
                 {/* Split into layers (same as upload image – UI + layer count buttons) */}
                 <button
                   type="button"
-                  className="relative flex h-9 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  disabled
+                  className="relative flex h-9 select-none items-center rounded-xl p-2 outline-none opacity-60 cursor-not-allowed"
                 >
                   <div className="flex flex-1 items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">

@@ -52,6 +52,10 @@ export function MultiSelectToolbar() {
     const screenX = centerX * viewport.zoom + viewport.x;
     const screenY = minY * viewport.zoom + viewport.y - 50; // 50px above the top
 
+    if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
+      return null;
+    }
+
     return { x: screenX, y: screenY };
   }, [selectedNodes, getViewport]);
 

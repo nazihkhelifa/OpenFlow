@@ -337,7 +337,8 @@ export function UploadToolbar({
                   {/* Crop */}
                   <button
                     type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                    disabled
+                    className="relative flex h-10 select-none items-center rounded-xl p-2 outline-none opacity-60 cursor-not-allowed"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -376,7 +377,8 @@ export function UploadToolbar({
                   {/* Outpaint */}
                   <button
                     type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                    disabled
+                    className="relative flex h-10 select-none items-center rounded-xl p-2 outline-none opacity-60 cursor-not-allowed"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -394,7 +396,8 @@ export function UploadToolbar({
                   {/* Remove background */}
                   <button
                     type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                    disabled
+                    className="relative flex h-10 select-none items-center rounded-xl p-2 outline-none opacity-60 cursor-not-allowed"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
