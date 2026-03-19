@@ -28,7 +28,7 @@ export function ConnectedImageThumbnails({ nodeId, className = "" }: ConnectedIm
           key={`${url.slice(0, 50)}-${i}`}
           src={url}
           alt="Connected input"
-          className="h-8 w-8 rounded-md object-cover border border-neutral-600/60 shadow-sm"
+          className="h-8 w-8 rounded-md object-contain border border-neutral-600/60 shadow-sm"
         />
       ))}
     </div>

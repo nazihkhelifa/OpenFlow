@@ -6,6 +6,7 @@ import { useWorkflowStore } from "@/store/workflowStore";
 import { useToast } from "@/components/Toast";
 import type { GenerateVideoNodeData } from "@/types";
 import { ProviderBadge } from "../shared/ProviderBadge";
+import { getVideoDimensions } from "@/utils/nodeDimensions";
 import {
   extractFrameFromVideoElement,
   extractFrameFromVideoUrl,
@@ -63,12 +64,21 @@ export function GenerateVideoToolbar({
 
       const el = videoPreviewRef?.current ?? null;
       let dataUrl: string | null = null;
+      let dimensions: { width: number; height: number } | null = null;
       if (el && el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        const w = el.videoWidth;
+        const h = el.videoHeight;
+        if (w > 0 && h > 0) dimensions = { width: w, height: h };
         dataUrl = await extractFrameFromVideoElement(el, slot);
       }
       if (!dataUrl && outputVideoUrl) {
         const hint = slot === "current" && el ? el.currentTime : undefined;
-        dataUrl = await extractFrameFromVideoUrl(outputVideoUrl, slot, hint);
+        const [png, dims] = await Promise.all([
+          extractFrameFromVideoUrl(outputVideoUrl, slot, hint),
+          getVideoDimensions(outputVideoUrl),
+        ]);
+        dataUrl = png;
+        dimensions = dims;
       }
       if (!dataUrl) {
         useToast.getState().show("Could not extract frame", "error");
@@ -89,6 +99,7 @@ export function GenerateVideoToolbar({
           mode: "image",
           image: dataUrl,
           filename: `frame-${label}.png`,
+          dimensions: dimensions ?? null,
         }
       );
 

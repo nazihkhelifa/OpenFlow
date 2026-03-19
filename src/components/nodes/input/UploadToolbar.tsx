@@ -5,6 +5,7 @@ import { NodeToolbar, Position } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { useToast } from "@/components/Toast";
 import { splitWithDimensions } from "@/utils/gridSplitter";
+import { getVideoDimensions } from "@/utils/nodeDimensions";
 import {
   extractFrameFromVideoElement,
   extractFrameFromVideoUrl,
@@ -100,12 +101,21 @@ export function UploadToolbar({
 
     const el = videoPreviewRef?.current ?? null;
     let dataUrl: string | null = null;
+    let dimensions: { width: number; height: number } | null = null;
     if (el && el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      const w = el.videoWidth;
+      const h = el.videoHeight;
+      if (w > 0 && h > 0) dimensions = { width: w, height: h };
       dataUrl = await extractFrameFromVideoElement(el, slot);
     }
     if (!dataUrl && videoSourceUrl) {
       const hint = slot === "current" && el ? el.currentTime : undefined;
-      dataUrl = await extractFrameFromVideoUrl(videoSourceUrl, slot, hint);
+      const [png, dims] = await Promise.all([
+        extractFrameFromVideoUrl(videoSourceUrl, slot, hint),
+        getVideoDimensions(videoSourceUrl),
+      ]);
+      dataUrl = png;
+      dimensions = dims;
     }
     if (!dataUrl) {
       useToast.getState().show("Could not extract frame", "error");
@@ -126,6 +136,7 @@ export function UploadToolbar({
         mode: "image",
         image: dataUrl,
         filename: `frame-${label}.png`,
+        dimensions: dimensions ?? null,
       }
     );
 
