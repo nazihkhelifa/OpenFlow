@@ -137,6 +137,19 @@ type ChatImageAttachment = {
   dataUrl: string;
 };
 
+function _escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function linkifyNodeIds(text: string, nodeIds: string[]): string {
+  if (!text || nodeIds.length === 0) return text;
+  const sorted = [...nodeIds].sort((a, b) => b.length - a.length);
+  const pattern = sorted.map(_escapeRegExp).join("|");
+  if (!pattern) return text;
+  const re = new RegExp(`(?<!\\]\\()\\b(${pattern})\\b`, "g");
+  return text.replace(re, (_m, id: string) => `[${id}](node://${id})`);
+}
+
 function inferVisionAttachmentsFromWorkflow(
   workflowState: WorkflowState | undefined,
   selectedNodeIds: string[] | undefined
@@ -310,6 +323,7 @@ export function FlowyAgentPanel({
 }) {
   const { screenToFlowPosition, setCenter, getViewport } = useReactFlow();
   const storeUpdateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const setNavigationTarget = useWorkflowStore((s) => s.setNavigationTarget);
 
   const flowToScreenPosition = useCallback(
     (pos: { x: number; y: number }) => {
@@ -523,6 +537,59 @@ export function FlowyAgentPanel({
     }
     return m;
   }, [workflowState]);
+
+  const allNodeIds = useMemo(
+    () => (workflowState?.nodes ?? []).map((n) => n.id).filter(Boolean),
+    [workflowState]
+  );
+
+  const renderChatMarkdown = useCallback(
+    (text: string) => {
+      const linked = linkifyNodeIds(text, allNodeIds);
+      return (
+        <ReactMarkdown
+          components={{
+            ...FLOWY_CHAT_MD_COMPONENTS,
+            a: ({ href, children }) => {
+              if (typeof href === "string" && href.startsWith("node://")) {
+                const nodeId = href.slice("node://".length);
+                return (
+                  <button
+                    type="button"
+                    className="rounded bg-white/10 px-1 py-px text-sky-300 underline underline-offset-2 hover:text-sky-200"
+                    onClick={() => {
+                      // Select only this node in-place, then center canvas on it.
+                      useWorkflowStore.setState((state) => ({
+                        nodes: state.nodes.map((n) => ({ ...n, selected: n.id === nodeId })),
+                        edges: state.edges.map((e) => ({ ...e, selected: false })),
+                      }));
+                      setNavigationTarget(nodeId);
+                    }}
+                    title={`Focus node ${nodeId}`}
+                  >
+                    {children}
+                  </button>
+                );
+              }
+              return (
+                <a
+                  href={href}
+                  className="text-sky-400 underline underline-offset-2 hover:text-sky-300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {children}
+                </a>
+              );
+            },
+          }}
+        >
+          {linked}
+        </ReactMarkdown>
+      );
+    },
+    [allNodeIds, setNavigationTarget]
+  );
 
   const nodePickerItems = useMemo(() => {
     if (!workflowState) return [];
@@ -1248,7 +1315,7 @@ export function FlowyAgentPanel({
             <div key={m.id} className="group/message flex select-text flex-col items-end gap-2.5 px-4 py-1">
               <div className="max-w-[85%] rounded-2xl bg-white/[0.1] px-4 py-2 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] backdrop-blur-sm">
                 <div className="flowy-chat-md text-sm leading-[1.5]">
-                  <ReactMarkdown components={FLOWY_CHAT_MD_COMPONENTS}>{m.text}</ReactMarkdown>
+                  {renderChatMarkdown(m.text)}
                 </div>
               </div>
               <div className="flex items-center gap-1 pr-1 opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100">
@@ -1267,7 +1334,7 @@ export function FlowyAgentPanel({
               <div className="px-6">
                 <div className="text-sm leading-[1.4] tracking-[-0.14px] text-neutral-100">
                   <div className="flowy-chat-md whitespace-normal break-words">
-                    <ReactMarkdown components={FLOWY_CHAT_MD_COMPONENTS}>{m.text}</ReactMarkdown>
+                    {renderChatMarkdown(m.text)}
                   </div>
                 </div>
               </div>
