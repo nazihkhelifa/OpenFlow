@@ -392,6 +392,10 @@ export function FlowyAgentPanel({
     if (flowyAgentMode === "auto") {
       setApplyMode("auto");
       setAutoContinue(true);
+    } else if (flowyAgentMode === "assist") {
+      // Assist now auto-applies canvas edits; only run execution needs approval.
+      setApplyMode("auto");
+      setAutoContinue(false);
     } else {
       stopAutoRun();
       setApplyMode("manual");
@@ -577,7 +581,8 @@ export function FlowyAgentPanel({
     if (executionIndex < pendingOperations.length) return;
     if (!pendingExecuteNodeIds || pendingExecuteNodeIds.length === 0) return;
     if (!onRunNodeIds) return;
-    if (applyMode !== "auto") return;
+    // Only Auto mode can execute workflows by itself.
+    if (flowyAgentMode !== "auto") return;
     if (autoRunCompletedRef.current) return;
     autoRunCompletedRef.current = true;
     // Auto-run after all edits applied
@@ -599,7 +604,7 @@ export function FlowyAgentPanel({
         { suppressUserEcho: true }
       );
     })();
-  }, [applyMode, autoContinue, executionIndex, onRunNodeIds, pendingExecuteNodeIds, pendingOperations, requestPlan]);
+  }, [autoContinue, executionIndex, flowyAgentMode, onRunNodeIds, pendingExecuteNodeIds, pendingOperations, requestPlan]);
 
   // Auto-apply mode: run through all pending operations sequentially.
   useEffect(() => {
@@ -806,7 +811,7 @@ export function FlowyAgentPanel({
           <div className="px-4 text-center text-sm text-neutral-500 py-8">
             {flowyAgentMode === "plan" ? (
               <>
-                <p className="text-neutral-400">Plan mode — advice only (no canvas edits).</p>
+                <p className="text-neutral-400">Chat mode — advice only (no canvas edits).</p>
                 <p className="text-xs mt-2">
                   Example: “Give me a 3-node workflow for a product ad, with prompts to paste.”
                 </p>
@@ -869,7 +874,7 @@ export function FlowyAgentPanel({
                     <SquarePlus className="size-3.5" strokeWidth={2} aria-hidden />
                   </div>
                   <span className="text-xs font-medium leading-[1.4] tracking-[-0.12px] flowy-shimmer-text">
-                    {applyMode === "auto" && executionIndex < pendingOperations.length
+                    {executionIndex < pendingOperations.length
                       ? "Applying to canvas…"
                       : "Waiting for approval"}
                   </span>
@@ -889,40 +894,16 @@ export function FlowyAgentPanel({
                     <div className="select-none pt-1.5">
                       <div className="mb-3 flex flex-wrap items-center gap-2 px-0.5">
                         <span className="text-[10px] uppercase tracking-wide text-neutral-500">Apply</span>
-                        <button
-                          type="button"
-                          className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                            applyMode === "manual"
-                              ? "bg-white/10 text-white"
-                              : "text-neutral-500 hover:text-neutral-300"
-                          }`}
-                          onClick={() => {
-                            stopAutoRun();
-                            setApplyMode("manual");
-                          }}
-                          aria-pressed={applyMode === "manual"}
-                        >
-                          Manual
-                        </button>
-                        <button
-                          type="button"
-                          className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                            applyMode === "auto"
-                              ? "bg-emerald-500/15 text-emerald-300"
-                              : "text-neutral-500 hover:text-neutral-300"
-                          }`}
-                          onClick={() => setApplyMode("auto")}
-                          aria-pressed={applyMode === "auto"}
-                        >
+                        <span className="rounded-lg px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-300">
                           Auto
-                        </button>
+                        </span>
                         <label className="ml-1 flex cursor-pointer items-center gap-1.5 text-[11px] text-neutral-500 select-none">
                           <input
                             type="checkbox"
                             className="accent-emerald-500"
                             checked={autoContinue}
                             onChange={(e) => setAutoContinue(e.target.checked)}
-                            disabled={applyMode !== "auto"}
+                            disabled={flowyAgentMode !== "auto"}
                           />
                           Continue
                         </label>
@@ -1018,17 +999,7 @@ export function FlowyAgentPanel({
                   </button>
                   {executionIndex < pendingOperations.length ? (
                     <>
-                      {applyMode === "manual" && onApplyEdits && (
-                        <button
-                          type="button"
-                          onClick={() => void handleApproveStep()}
-                          disabled={isExecutingStep}
-                          className="flex h-7 shrink-0 items-center gap-1 rounded-xl border border-emerald-400/30 bg-emerald-500/[0.14] px-2.5 text-[11px] font-medium text-emerald-300 backdrop-blur-md transition-[filter] hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-45"
-                        >
-                          {isExecutingStep ? "Applying…" : "Apply step"}
-                        </button>
-                      )}
-                      {applyMode === "auto" && isExecutingStep && (
+                      {isExecutingStep && (
                         <button
                           type="button"
                           onClick={() => stopAutoRun()}
@@ -1041,7 +1012,7 @@ export function FlowyAgentPanel({
                   ) : pendingExecuteNodeIds &&
                     pendingExecuteNodeIds.length > 0 &&
                     pendingRunApprovalRequired &&
-                    applyMode === "manual" &&
+                    flowyAgentMode === "assist" &&
                     onRunNodeIds ? (
                     <button
                       type="button"
@@ -1115,7 +1086,7 @@ export function FlowyAgentPanel({
                         flowyAgentMode === m ? "text-white" : "text-neutral-500 hover:text-neutral-300"
                       }`}
                     >
-                      {m === "assist" ? "Assist" : m === "auto" ? "Auto" : "Plan"}
+                      {m === "assist" ? "Assist" : m === "auto" ? "Auto" : "Chat"}
                     </button>
                   ))}
                 </div>
@@ -1173,7 +1144,7 @@ export function FlowyAgentPanel({
         >
           <span className="text-neutral-500">Flowy is experimental.</span>{" "}
           <span className="text-neutral-600">
-            Plan = advice only · Assist = step-by-step · Auto = build &amp; run
+            Chat = advice only · Assist = step-by-step · Auto = build &amp; run
           </span>
         </div>
       </div>

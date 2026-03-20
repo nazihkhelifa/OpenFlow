@@ -274,7 +274,7 @@ def _build_user_prompt(
 CLOSE_CANVAS_PLAN = "Return the planned edit operations as a single JSON object."
 
 CLOSE_PLAN_ADVISOR = (
-    "MODE: PLAN (advisory only). Do not output edit operations or claim the canvas changed.\n"
+    "MODE: CHAT (advisory only). Do not output edit operations or claim the canvas changed.\n"
     'Return ONLY valid JSON: {"assistantText":"..."} — a single string with your full answer.'
 )
 
@@ -287,7 +287,7 @@ def _run_plan_advisor_only(
 ) -> str:
     advisor = _read_text_file("PLAN_ADVISOR.md").strip()
     if not advisor:
-        advisor = "You are a workflow planning assistant. Advise only; do not claim canvas edits."
+        advisor = "You are a workflow chat advisor. Advise only; do not claim canvas edits."
     system_prompt = advisor + "\n\nReturn ONLY JSON: {\"assistantText\": \"...\"}."
     user_prompt = _build_user_prompt(
         message,
