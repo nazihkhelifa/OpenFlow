@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Copy,
   LayoutGrid,
+  Loader2,
   Minus,
   MousePointerClick,
   Paperclip,
@@ -152,6 +153,7 @@ export function FlowyAgentPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isPlanning, setIsPlanning] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [pendingOperations, setPendingOperations] = useState<EditOperation[] | null>(null);
@@ -176,6 +178,7 @@ export function FlowyAgentPanel({
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
   const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
+  const activePlanAbortRef = useRef<AbortController | null>(null);
   const lastGoalRef = useRef<string | null>(null);
   const autoContinueCountRef = useRef<number>(0);
 
@@ -311,6 +314,9 @@ export function FlowyAgentPanel({
 
       setErrorMessage(null);
       setIsPlanning(true);
+      activePlanAbortRef.current?.abort();
+      const abortController = new AbortController();
+      activePlanAbortRef.current = abortController;
 
       if (!opts?.suppressUserEcho) {
         const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text: trimmed };
@@ -321,6 +327,7 @@ export function FlowyAgentPanel({
         const res = await fetch("/api/flowy/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: abortController.signal,
           body: JSON.stringify({
             message: customInstructions.trim().length
               ? `Custom instructions:\n${customInstructions.trim()}\n\nUser request:\n${trimmed}`
@@ -379,8 +386,12 @@ export function FlowyAgentPanel({
 
         scrollToBottom();
       } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         setErrorMessage(e instanceof Error ? e.message : "Failed to plan edits");
       } finally {
+        if (activePlanAbortRef.current === abortController) {
+          activePlanAbortRef.current = null;
+        }
         setIsPlanning(false);
       }
     },
@@ -460,6 +471,11 @@ export function FlowyAgentPanel({
       }
     }
   }, [flowyAgentMode, stopAutoRun]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    activePlanAbortRef.current?.abort();
+  }, [isOpen]);
 
   const sleep = useCallback((ms: number) => new Promise((r) => setTimeout(r, ms)), []);
 
@@ -682,7 +698,12 @@ export function FlowyAgentPanel({
     autoRunCompletedRef.current = true;
     // Auto-run after all edits applied
     (async () => {
-      await onRunNodeIds(pendingExecuteNodeIds);
+      setIsRunning(true);
+      try {
+        await onRunNodeIds(pendingExecuteNodeIds);
+      } finally {
+        setIsRunning(false);
+      }
 
       // Optional: continue the agent loop by planning the next minimal stage
       // using the updated workflowState (now containing status/error/output fields).
@@ -1005,7 +1026,7 @@ export function FlowyAgentPanel({
                             className="accent-emerald-500"
                             checked={autoContinue}
                             onChange={(e) => setAutoContinue(e.target.checked)}
-                            disabled={flowyAgentMode !== "auto"}
+                            disabled={flowyAgentMode !== "auto" || isPlanning || isExecutingStep || isRunning}
                           />
                           Continue
                         </label>
@@ -1101,7 +1122,7 @@ export function FlowyAgentPanel({
                   </button>
                   {executionIndex < pendingOperations.length ? (
                     <>
-                      {isExecutingStep && (
+                      {(isExecutingStep || isRunning) && (
                         <button
                           type="button"
                           onClick={() => stopAutoRun()}
@@ -1118,10 +1139,19 @@ export function FlowyAgentPanel({
                     onRunNodeIds ? (
                     <button
                       type="button"
-                      onClick={() => void onRunNodeIds(pendingExecuteNodeIds)}
+                      onClick={async () => {
+                        if (isRunning) return;
+                        setIsRunning(true);
+                        try {
+                          await onRunNodeIds(pendingExecuteNodeIds);
+                        } finally {
+                          setIsRunning(false);
+                        }
+                      }}
+                      disabled={isRunning || isPlanning || isExecutingStep}
                       className="flex h-7 shrink-0 items-center gap-1 rounded-xl border border-emerald-400/30 bg-emerald-500/[0.14] px-2.5 text-[11px] font-medium text-emerald-300 backdrop-blur-md transition-[filter] hover:brightness-125"
                     >
-                      Run
+                      {isRunning ? "Running..." : "Run"}
                     </button>
                   ) : (
                     <button
@@ -1145,6 +1175,12 @@ export function FlowyAgentPanel({
             }}
           >
             <div className="flex w-full flex-col gap-2.5">
+              {isPlanning && (
+                <div className="-mt-1 flex items-center gap-2 px-1 text-[11px] text-neutral-400">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Flowy is thinking...</span>
+                </div>
+              )}
               {contextNodeChips.length > 0 && (
                 <div
                   role="list"
@@ -1264,6 +1300,7 @@ export function FlowyAgentPanel({
                       role="radio"
                       aria-checked={flowyAgentMode === m}
                       onClick={() => setFlowyAgentMode(m)}
+                      disabled={isPlanning || isExecutingStep || isRunning}
                       className={`relative z-10 rounded-lg px-1 py-0.5 text-[11px] font-medium leading-[1.25] tracking-tight transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/25 ${
                         flowyAgentMode === m ? "text-white" : "text-neutral-500 hover:text-neutral-300"
                       }`}
@@ -1288,12 +1325,14 @@ export function FlowyAgentPanel({
                     aria-label="Attach images"
                     title="Attach images"
                     onClick={() => imageInputRef.current?.click()}
+                    disabled={isPlanning || isExecutingStep || isRunning}
                   >
                     <Paperclip className="size-4" strokeWidth={1.5} aria-hidden />
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsNodePickerOpen(true)}
+                    disabled={isPlanning || isExecutingStep || isRunning}
                     className="flex size-8 items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100"
                     aria-label="Mention nodes"
                     title="Mention nodes (@)"

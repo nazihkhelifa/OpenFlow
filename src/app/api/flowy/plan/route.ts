@@ -33,6 +33,8 @@ type FlowySpawn = {
   cwd?: string;
 };
 
+const FLOWY_PLANNER_TIMEOUT_MS = Number(process.env.FLOWY_PLANNER_TIMEOUT_MS || 120000);
+
 /**
  * Prefer, in order: FLOWY_PYTHON, backend/.venv Python, then `uv run` (no bare `python` on PATH —
  * avoids Windows Store stub / exit 9009 when Python isn't installed globally).
@@ -76,6 +78,20 @@ function runFlowyPlanner(payload: PlanRequest): Promise<any> {
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        child.kill();
+      } catch {}
+      reject(
+        new Error(
+          `Flowy planner timed out after ${Math.round(FLOWY_PLANNER_TIMEOUT_MS / 1000)}s. ` +
+            "Try a simpler request or increase FLOWY_PLANNER_TIMEOUT_MS."
+        )
+      );
+    }, FLOWY_PLANNER_TIMEOUT_MS);
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
@@ -85,6 +101,9 @@ function runFlowyPlanner(payload: PlanRequest): Promise<any> {
     });
 
     child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       const extra =
         command === "uv"
           ? ` ${FLOWY_VENV_HINT} If uv is not installed, install it or use FLOWY_PYTHON.`
@@ -93,6 +112,9 @@ function runFlowyPlanner(payload: PlanRequest): Promise<any> {
     });
 
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       try {
         const parsed = JSON.parse(stdout);
         // If the python process returned a non-zero code but still printed JSON,
