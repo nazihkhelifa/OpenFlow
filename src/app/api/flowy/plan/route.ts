@@ -16,6 +16,7 @@ type PlanRequest = {
     id: string;
     name?: string;
     mimeType?: string;
+    /** data:image/... or http(s) image URL */
     dataUrl: string;
   }>;
   /** `plan` = advisory only (no canvas ops). `assist` / `auto` = canvas planner. */

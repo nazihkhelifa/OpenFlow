@@ -137,6 +137,59 @@ type ChatImageAttachment = {
   dataUrl: string;
 };
 
+function inferVisionAttachmentsFromWorkflow(
+  workflowState: WorkflowState | undefined,
+  selectedNodeIds: string[] | undefined
+): ChatImageAttachment[] {
+  if (!workflowState?.nodes?.length) return [];
+
+  const selected = new Set(selectedNodeIds ?? []);
+  const candidates: Array<{ nodeId: string; label: string; url: string }> = [];
+
+  const pushCandidate = (nodeId: string, label: string, raw: unknown) => {
+    if (typeof raw !== "string" || !raw.trim()) return;
+    const url = raw.trim();
+    const isImageData = url.startsWith("data:image/");
+    const isImageHttp = /^https?:\/\//i.test(url);
+    if (!isImageData && !isImageHttp) return;
+    candidates.push({ nodeId, label, url });
+  };
+
+  for (const n of workflowState.nodes) {
+    const data = (n.data ?? {}) as Record<string, unknown>;
+    const label = typeof data.customTitle === "string" && data.customTitle.trim()
+      ? data.customTitle.trim()
+      : n.type;
+    // Most common output/image fields across nodes.
+    pushCandidate(n.id, label, data.outputImage);
+    pushCandidate(n.id, label, data.image);
+    pushCandidate(n.id, label, data.capturedImage);
+    pushCandidate(n.id, label, data.sourceImage);
+  }
+
+  // Prioritize selected-node outputs, then others.
+  const ordered = [
+    ...candidates.filter((c) => selected.has(c.nodeId)),
+    ...candidates.filter((c) => !selected.has(c.nodeId)),
+  ];
+
+  const seen = new Set<string>();
+  const out: ChatImageAttachment[] = [];
+  for (const c of ordered) {
+    if (seen.has(c.url)) continue;
+    seen.add(c.url);
+    out.push({
+      id: `vision-${c.nodeId}-${out.length + 1}`,
+      name: `${c.label} output`,
+      mimeType: "image/*",
+      dataUrl: c.url,
+    });
+    if (out.length >= 6) break;
+  }
+
+  return out;
+}
+
 /** Markdown in Flowy chat (user + assistant): bold, lists, code, links — no raw `**`. */
 const FLOWY_CHAT_MD_COMPONENTS: Components = {
   p: ({ children }) => (
@@ -527,13 +580,22 @@ export function FlowyAgentPanel({
           parts.push(`User request:\n${trimmed}`);
           fullMessage = parts.join("\n\n");
         }
+        const inferredVisionAttachments = inferVisionAttachmentsFromWorkflow(
+          stateForRequest,
+          contextNodeIds
+        );
+        const mergedAttachments = [...imageAttachments, ...inferredVisionAttachments].slice(0, 8);
+        const dedupedAttachments = mergedAttachments.filter(
+          (a, idx, arr) => arr.findIndex((x) => x.dataUrl === a.dataUrl) === idx
+        );
+
         const body: Record<string, unknown> = {
           message: fullMessage,
           workflowState: stateForRequest,
           selectedNodeIds: contextNodeIds,
           chatHistory: chatHistoryPayload,
           agentMode: agentModeAtStart,
-          attachments: imageAttachments,
+          attachments: dedupedAttachments,
         };
         if (opts?.stageIndex !== undefined) body.stageIndex = opts.stageIndex;
         if (opts?.decompositionStages) body.decompositionStages = opts.decompositionStages;

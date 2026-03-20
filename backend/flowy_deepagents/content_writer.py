@@ -169,6 +169,7 @@ def _check_quality(
     user_goal: str,
     workflow_state: Dict[str, Any],
     selected_node_ids: List[str],
+    attachments: Optional[List[Dict[str, str]]] = None,
     stage_instruction: Optional[str] = None,
 ) -> Optional[QualityCheckModel]:
     """
@@ -203,7 +204,8 @@ def _check_quality(
         + f"WorkflowBrief (JSON):\n{json.dumps(brief, ensure_ascii=False)}\n\n"
         + "Return ONLY the JSON object."
     )
-    lc_messages: List[Any] = [SystemMessage(content=checker_md), HumanMessage(content=user_content)]
+    lc_messages: List[Any] = [SystemMessage(content=checker_md)]
+    lc_messages.append(_build_human_message_with_attachments(user_content, attachments or []))
 
     try:
         structured = model.with_structured_output(QualityCheckModel)
@@ -257,7 +259,9 @@ def _coerce_image_attachments(raw_attachments: Any) -> List[Dict[str, str]]:
         if not isinstance(item, dict):
             continue
         data_url = str(item.get("dataUrl") or "")
-        if not data_url.startswith("data:image/"):
+        is_data_image = data_url.startswith("data:image/")
+        is_http_image = data_url.startswith("http://") or data_url.startswith("https://")
+        if not (is_data_image or is_http_image):
             continue
         att_id = str(item.get("id") or f"att-{i+1}")
         out.append(
@@ -280,6 +284,23 @@ def _build_human_message_with_attachments(
     for att in attachments[:6]:
         content.append({"type": "image_url", "image_url": {"url": att["dataUrl"]}})
     return HumanMessage(content=content)
+
+
+def _looks_like_visual_assessment_request(message: str) -> bool:
+    m = (message or "").lower()
+    cues = [
+        "what do you think",
+        "thoughts on this",
+        "rate this",
+        "is this good",
+        "critique",
+        "feedback",
+        "analyze this image",
+        "analyze this",
+        "review this image",
+        "quality",
+    ]
+    return any(c in m for c in cues)
 
 
 def _materialize_attachment_operations(
@@ -907,6 +928,26 @@ def main() -> None:
                 router_model, message, workflow_state, selected_node_ids, chat_history
             )
             if route and route.get("intent") == "conversation":
+                # If images are available and user asks for visual feedback,
+                # route through multimodal advisor instead of a plain router reply.
+                if attachments and _looks_like_visual_assessment_request(message):
+                    text = _run_plan_advisor_only(
+                        model, message, workflow_state, selected_node_ids, attachments, chat_history=chat_history
+                    )
+                    sys.stdout.write(
+                        json.dumps(
+                            {
+                                "ok": True,
+                                "mode": "chat",
+                                "assistantText": text,
+                                "operations": [],
+                                "requiresApproval": False,
+                                "approvalReason": "",
+                                "runApprovalRequired": False,
+                            }
+                        )
+                    )
+                    return
                 reply_text = route.get("reply")
                 if not isinstance(reply_text, str) or not reply_text.strip():
                     reply_text = (
@@ -1102,6 +1143,7 @@ def main() -> None:
                 message,
                 workflow_state,
                 selected_node_ids,
+                attachments=attachments,
                 stage_instruction=current_stage_instruction,
             )
             if qc:
