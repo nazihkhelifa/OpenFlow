@@ -25,9 +25,9 @@ const InlineGLBViewer = dynamic(
 // 3D generation capabilities
 const THREE_D_CAPABILITIES: ModelCapability[] = ["text-to-3d", "image-to-3d"];
 
-type Generate3DNodeType = Node<Generate3DNodeData, "generate3d">;
+type ThreeDNodeType = Node<Generate3DNodeData, "generate3d">;
 
-export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeType>) {
+export function ThreeDNode({ id, data, selected }: NodeProps<ThreeDNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const { hasPromptConnection, promptDisplayValue } = useWorkflowStore(
@@ -537,3 +537,6 @@ export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeT
     </>
   );
 }
+
+// Backward compatibility alias
+export { ThreeDNode as Generate3DNode };

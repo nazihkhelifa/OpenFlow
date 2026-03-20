@@ -14,7 +14,7 @@ import { useMediaViewer } from "@/providers/media-viewer";
 
 type AnnotationNodeType = Node<AnnotationNodeData, "annotation">;
 
-export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeType>) {
+export function LayerEditorNode({ id, data, selected }: NodeProps<AnnotationNodeType>) {
   const nodeData = data;
   const openModal = useAnnotationStore((state) => state.openModal);
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
@@ -234,3 +234,6 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
     </BaseNode>
   );
 }
+
+// Backward compatibility alias
+export { LayerEditorNode as AnnotationNode };

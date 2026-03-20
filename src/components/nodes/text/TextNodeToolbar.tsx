@@ -30,12 +30,12 @@ const LLM_MODELS: Record<LLMProvider, { value: LLMModelType; label: string }[]> 
   ],
 };
 
-interface PromptNodeToolbarProps {
+interface TextNodeToolbarProps {
   nodeId: string;
   data: PromptNodeData;
 }
 
-export function PromptNodeToolbar({ nodeId, data }: PromptNodeToolbarProps) {
+export function TextNodeToolbar({ nodeId, data }: TextNodeToolbarProps) {
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -210,3 +210,6 @@ export function PromptNodeToolbar({ nodeId, data }: PromptNodeToolbarProps) {
     </NodeToolbar>
   );
 }
+
+// Backward compatibility
+export { TextNodeToolbar as PromptNodeToolbar };

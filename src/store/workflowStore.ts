@@ -1594,10 +1594,60 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
     }, 0);
     groupIdCounter = maxGroupId;
 
-    // Migrate legacy nanoBanana -> generateImage (node type rename)
+    // Migrate legacy node types.
     workflow.nodes = workflow.nodes.map((node) => {
-      if ((node as { type: string }).type === "nanoBanana") {
+      const t = (node as { type: string }).type;
+      if (t === "nanoBanana") {
         return { ...node, type: "generateImage" as const };
+      }
+      if (t === "imageInput") {
+        const d = node.data as {
+          image?: string | null;
+          imageRef?: string;
+          filename?: string | null;
+          dimensions?: { width: number; height: number } | null;
+        };
+        return {
+          ...node,
+          type: "mediaInput" as const,
+          data: {
+            mode: "image",
+            image: d.image ?? null,
+            imageRef: d.imageRef,
+            filename: d.filename ?? null,
+            dimensions: d.dimensions ?? null,
+            audioFile: null,
+            duration: null,
+            format: null,
+            videoFile: null,
+            glbUrl: null,
+            capturedImage: null,
+          },
+        };
+      }
+      if (t === "audioInput") {
+        const d = node.data as {
+          audioFile?: string | null;
+          filename?: string | null;
+          duration?: number | null;
+          format?: string | null;
+        };
+        return {
+          ...node,
+          type: "mediaInput" as const,
+          data: {
+            mode: "audio",
+            image: null,
+            dimensions: null,
+            audioFile: d.audioFile ?? null,
+            duration: d.duration ?? null,
+            format: d.format ?? null,
+            videoFile: null,
+            glbUrl: null,
+            capturedImage: null,
+            filename: d.filename ?? null,
+          },
+        };
       }
       return node;
     }) as WorkflowNode[];

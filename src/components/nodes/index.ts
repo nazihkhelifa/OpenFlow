@@ -10,21 +10,19 @@ export { InlineParameterPanel } from "./shared/InlineParameterPanel";
 export { ProviderBadge } from "./shared/ProviderBadge";
 
 // Input nodes
-export { ImageInputNode } from "./input/ImageInputNode";
-export { AudioInputNode } from "./input/AudioInputNode";
-export { MediaInputNode } from "./input/MediaInputNode";
+export { UploadNode, MediaInputNode } from "./input/UploadNode";
 
 // Text nodes
-export { PromptNode } from "./text/PromptNode";
+export { TextNode, PromptNode } from "./text/TextNode";
 
 // Generate nodes
-export { GenerateImageNode, NanoBananaNode } from "./generate/GenerateImageNode";
-export { GenerateVideoNode } from "./generate/GenerateVideoNode";
-export { Generate3DNode } from "./generate/Generate3DNode";
-export { GenerateAudioNode } from "./generate/GenerateAudioNode";
+export { ImageNode, GenerateImageNode, NanoBananaNode } from "./generate/ImageNode";
+export { VideoNode, GenerateVideoNode } from "./generate/VideoNode";
+export { ThreeDNode, Generate3DNode } from "./generate/ThreeDNode";
+export { AudioNode, GenerateAudioNode } from "./generate/AudioNode";
 
 // Process nodes
-export { AnnotationNode } from "./process/AnnotationNode";
+export { LayerEditorNode, AnnotationNode } from "./process/LayerEditorNode";
 export { ImageCompareNode } from "./process/ImageCompareNode";
 
 // Video nodes

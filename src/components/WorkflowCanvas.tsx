@@ -21,15 +21,13 @@ import { useShallow } from "zustand/shallow";
 import { useToast } from "@/components/Toast";
 import dynamic from "next/dynamic";
 import {
-  ImageInputNode,
-  AudioInputNode,
-  AnnotationNode,
+  AudioNode,
+  LayerEditorNode,
   CommentNode,
-  PromptNode,
-  GenerateImageNode,
-  GenerateVideoNode,
-  Generate3DNode,
-  GenerateAudioNode,
+  TextNode,
+  ImageNode,
+  VideoNode,
+  ThreeDNode,
   ImageCompareNode,
   EaseCurveNode,
   RouterNode,
@@ -39,7 +37,7 @@ import {
 
 // Lazy-load nodes that use three.js to avoid bundling for users who don't use them
 const GLBViewerNode = dynamic(() => import("./nodes/other/GLBViewerNode").then(mod => ({ default: mod.GLBViewerNode })), { ssr: false });
-const MediaInputNode = dynamic(() => import("./nodes/input/MediaInputNode").then(mod => ({ default: mod.MediaInputNode })), { ssr: false });
+const UploadNode = dynamic(() => import("./nodes/input/UploadNode").then(mod => ({ default: mod.UploadNode })), { ssr: false });
 import { EditableEdge, ReferenceEdge, SharedEdgeGradients } from "./edges";
 import { ConnectionDropMenu, MenuAction } from "./ConnectionDropMenu";
 import { CanvasContextMenu } from "./CanvasContextMenu";
@@ -62,16 +60,14 @@ import { createPortal } from "react-dom";
 import { useAnnotationStore } from "@/store/annotationStore";
 
 const nodeTypes: NodeTypes = {
-  mediaInput: MediaInputNode,
-  imageInput: ImageInputNode,
-  audioInput: AudioInputNode,
-  annotation: AnnotationNode,
+  mediaInput: UploadNode,
+  annotation: LayerEditorNode,
   comment: CommentNode,
-  prompt: PromptNode,
-  generateImage: GenerateImageNode,
-  generateVideo: GenerateVideoNode,
-  generate3d: Generate3DNode,
-  generateAudio: GenerateAudioNode,
+  prompt: TextNode,
+  generateImage: ImageNode,
+  generateVideo: VideoNode,
+  generate3d: ThreeDNode,
+  generateAudio: AudioNode,
   imageCompare: ImageCompareNode,
   easeCurve: EaseCurveNode,
   router: RouterNode,
@@ -115,10 +111,6 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
   switch (nodeType) {
     case "mediaInput":
       return { inputs: ["reference", "audio", "3d"], outputs: ["image", "audio", "video"] };
-    case "imageInput":
-      return { inputs: ["reference"], outputs: ["image"] };
-    case "audioInput":
-      return { inputs: ["audio"], outputs: ["audio"] };
     case "annotation":
       return { inputs: ["image"], outputs: ["image"] };
     case "prompt":
@@ -333,8 +325,6 @@ export function WorkflowCanvas() {
   // Node title mapping for FloatingNodeHeaders
   const NODE_TITLES: Record<string, string> = {
     mediaInput: 'Upload',
-    imageInput: 'Image Input',
-    audioInput: 'Audio Input',
     annotation: 'Layer Editor',
     prompt: 'Prompt',
     generateImage: 'Generate Image',
@@ -824,8 +814,6 @@ export function WorkflowCanvas() {
     if (!node) return null;
 
     switch (node.type) {
-      case "imageInput":
-        return (node.data as { image: string | null }).image;
       case "mediaInput": {
         const d = node.data as { mode?: string; image?: string | null; capturedImage?: string | null };
         return d.mode === "3d" ? (d.capturedImage ?? null) : (d.image ?? null);
@@ -1021,7 +1009,7 @@ export function WorkflowCanvas() {
           }
         } else if (nodeType === "generateImage" || nodeType === "generateVideo") {
           targetHandleId = "image";
-        } else if (nodeType === "imageInput" || nodeType === "mediaInput") {
+        } else if (nodeType === "mediaInput") {
           sourceHandleIdForNewNode = "image";
         }
       } else if (handleType === "text") {
@@ -1041,7 +1029,7 @@ export function WorkflowCanvas() {
           sourceHandleIdForNewNode = "video";
         }
       } else if (handleType === "audio") {
-        if (nodeType === "audioInput" || nodeType === "mediaInput") {
+        if (nodeType === "mediaInput") {
           // Audio node: accepts audio input and outputs audio
           targetHandleId = "audio";
           sourceHandleIdForNewNode = "audio";
@@ -1340,7 +1328,7 @@ export function WorkflowCanvas() {
                   const selectedInputNode = nodes.find(
                     (node) =>
                       node.selected &&
-                      (node.type === "mediaInput" || node.type === "imageInput")
+                      node.type === "mediaInput"
                   );
 
                   if (selectedInputNode) {

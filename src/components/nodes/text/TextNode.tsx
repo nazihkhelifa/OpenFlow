@@ -3,7 +3,7 @@
 import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { BaseNode } from "../shared/BaseNode";
-import { PromptNodeToolbar } from "./PromptNodeToolbar";
+import { TextNodeToolbar } from "./TextNodeToolbar";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { ConnectedImageThumbnails } from "../shared/ConnectedImageThumbnails";
 import { PromptNodeData, AvailableVariable } from "@/types";
@@ -11,11 +11,11 @@ import { usePromptAutocomplete } from "@/hooks/usePromptAutocomplete";
 import { parseVarTags } from "@/utils/parseVarTags";
 import { NodeRunButton } from "../shared/NodeRunButton";
 
-type PromptNodeType = Node<PromptNodeData, "prompt">;
+type TextNodeType = Node<PromptNodeData, "prompt">;
 
 const TEXT_EXAMPLE_PROMPT = "Describe what to generate...";
 
-export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
+export function TextNode({ id, data, selected }: NodeProps<TextNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const isRunning = useWorkflowStore((state) => state.isRunning);
@@ -160,7 +160,7 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
 
   return (
     <>
-      <PromptNodeToolbar nodeId={id} data={nodeData} />
+      <TextNodeToolbar nodeId={id} data={nodeData} />
       <BaseNode
         id={id}
         selected={selected}
@@ -343,3 +343,6 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
     </>
   );
 }
+
+// Backward compatibility
+export { TextNode as PromptNode };

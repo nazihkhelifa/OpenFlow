@@ -47,9 +47,9 @@ function buildVeoInputSchema(modelId: string): ModelInputDef[] | undefined {
   return inputs;
 }
 
-type GenerateVideoNodeType = Node<GenerateVideoNodeData, "generateVideo">;
+type VideoNodeType = Node<GenerateVideoNodeData, "generateVideo">;
 
-export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVideoNodeType>) {
+export function VideoNode({ id, data, selected }: NodeProps<VideoNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   // Use stable selector for API keys to prevent unnecessary re-fetches
@@ -829,3 +829,6 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
     </>
   );
 }
+
+// Backward compatibility alias
+export { VideoNode as GenerateVideoNode };

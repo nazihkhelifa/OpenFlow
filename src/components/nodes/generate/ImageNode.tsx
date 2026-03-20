@@ -42,9 +42,9 @@ const GEMINI_IMAGE_MODELS: { value: ModelType; label: string }[] = [
 // Image generation capabilities
 const IMAGE_CAPABILITIES: ModelCapability[] = ["text-to-image", "image-to-image"];
 
-type GenerateImageNodeType = Node<NanoBananaNodeData, "generateImage">;
+type ImageNodeType = Node<NanoBananaNodeData, "generateImage">;
 
-export function GenerateImageNode({ id, data, selected }: NodeProps<GenerateImageNodeType>) {
+export function ImageNode({ id, data, selected }: NodeProps<ImageNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const generationsPath = useWorkflowStore((state) => state.generationsPath);
@@ -994,8 +994,5 @@ export function GenerateImageNode({ id, data, selected }: NodeProps<GenerateImag
   );
 }
 
-/**
- * @deprecated Use `GenerateImageNode` instead. This alias is kept for backward compatibility
- * with existing workflows but will be removed in a future version.
- */
-export { GenerateImageNode as NanoBananaNode };
+// Backward compatibility aliases
+export { ImageNode as GenerateImageNode, ImageNode as NanoBananaNode };

@@ -108,7 +108,7 @@ function GLBAutoRotate({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeType>) {
+export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>) {
   const nodeData = data as MediaInputNodeData;
   // Mode derived from content - no toggle bar
   const mode: MediaInputMode = nodeData.image
@@ -740,3 +740,6 @@ export function MediaInputNode({ id, data, selected }: NodeProps<MediaInputNodeT
     </>
   );
 }
+
+// Backward compatibility alias
+export { UploadNode as MediaInputNode };

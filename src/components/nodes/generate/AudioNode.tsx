@@ -17,9 +17,9 @@ import { NodeRunButton } from "../shared/NodeRunButton";
 import { loadNodeDefaults } from "@/store/utils/localStorage";
 import { getProviderDisplayName } from "@/utils/providerUrls";
 
-type GenerateAudioNodeType = Node<GenerateAudioNodeData, "generateAudio">;
+type AudioNodeType = Node<GenerateAudioNodeData, "generateAudio">;
 
-export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudioNodeType>) {
+export function AudioNode({ id, data, selected }: NodeProps<AudioNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const generationsPath = useWorkflowStore((state) => state.generationsPath);
@@ -497,3 +497,6 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
     </>
   );
 }
+
+// Backward compatibility alias
+export { AudioNode as GenerateAudioNode };
