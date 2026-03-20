@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source for Flowy planner allowlists. Python loads this file; TS tests keep it aligned with NodeType.",
+  "$comment": "Single source for Flowy planner allowlists and model registry. Python loads this file; TS tests keep it aligned with NodeType.",
   "nodeTypes": [
     "mediaInput",
     "annotation",
@@ -36,5 +36,59 @@
     "deleteGroup",
     "updateGroup",
     "setNodeGroup"
-  ]
+  ],
+  "modelCapabilities": {
+    "imageGeneration": [
+      {
+        "id": "nano-banana",
+        "strengths": ["photorealistic", "natural scenes", "portraits", "products"],
+        "speed": "fast",
+        "quality": "high",
+        "bestFor": "General-purpose photorealistic image generation"
+      },
+      {
+        "id": "seedream",
+        "strengths": ["text rendering", "typography", "editing", "compositing", "controlled generation"],
+        "speed": "medium",
+        "quality": "very-high",
+        "bestFor": "Images requiring text overlays, precise editing, or compositional control"
+      },
+      {
+        "id": "imagen",
+        "strengths": ["artistic", "creative", "illustration", "diverse styles"],
+        "speed": "medium",
+        "quality": "high",
+        "bestFor": "Artistic imagery, illustrations, and creative style diversity"
+      }
+    ],
+    "videoGeneration": [
+      {
+        "id": "veo",
+        "strengths": ["cinematic", "smooth motion", "high quality"],
+        "speed": "slow",
+        "quality": "very-high",
+        "bestFor": "High-quality cinematic video generation from images or text"
+      }
+    ],
+    "textGeneration": [
+      {
+        "id": "gemini",
+        "strengths": ["reasoning", "analysis", "creative writing", "prompt crafting"],
+        "speed": "fast",
+        "quality": "high",
+        "bestFor": "Text generation, analysis, prompt engineering, and ideation"
+      }
+    ]
+  },
+  "modelSelectionRules": {
+    "photorealistic": "nano-banana",
+    "textOnImage": "seedream",
+    "artistic": "imagen",
+    "editing": "seedream",
+    "video": "veo",
+    "textAnalysis": "gemini",
+    "defaultImage": "nano-banana",
+    "defaultVideo": "veo",
+    "defaultText": "gemini"
+  }
 }

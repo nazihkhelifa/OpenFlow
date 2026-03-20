@@ -13,6 +13,8 @@ export interface BaseNodeData extends Record<string, unknown> {
   label?: string;
   customTitle?: string;
   comment?: string;
+  /** Timestamp set by the agent when it creates or modifies this node. Used for visual glow feedback. */
+  _agentTouched?: number;
 }
 
 // Shape type discriminator

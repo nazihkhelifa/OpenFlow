@@ -106,13 +106,14 @@ export function applyEditOperations(
           ...operation.data,
         } as WorkflowNodeData;
 
-        // Create new node
         const newNode: WorkflowNode = {
           id: nodeId,
           type: operation.nodeType,
           position,
-          data: nodeData,
-          // Match manual addNode path: React Flow should get default size via style.
+          data: {
+            ...nodeData,
+            _agentTouched: Date.now(),
+          } as WorkflowNodeData,
           style: { width: dimensions.width, height: dimensions.height },
         };
 
@@ -148,7 +149,6 @@ export function applyEditOperations(
           break;
         }
 
-        // Update node data immutably
         nodes = nodes.map((n) =>
           n.id === operation.nodeId
             ? {
@@ -156,6 +156,7 @@ export function applyEditOperations(
                 data: {
                   ...n.data,
                   ...operation.data,
+                  _agentTouched: Date.now(),
                 } as WorkflowNodeData,
               }
             : n

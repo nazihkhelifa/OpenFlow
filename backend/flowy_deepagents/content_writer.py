@@ -22,6 +22,13 @@ from canvas_context import (
 FLOWY_DEEPAGENTS_DIR = os.path.join(os.path.dirname(__file__), "")
 
 
+def _emit_progress(stage: str, detail: str = "") -> None:
+    """Write a progress event to stderr (picked up by the Node.js API route for SSE)."""
+    event = json.dumps({"progress": stage, "detail": detail}, ensure_ascii=False)
+    sys.stderr.write(f"FLOWY_PROGRESS:{event}\n")
+    sys.stderr.flush()
+
+
 class RouterIntentModel(BaseModel):
     """Structured router output (OpenAI structured output / JSON schema)."""
 
@@ -43,6 +50,31 @@ class FlowyPlanJsonModel(BaseModel):
 
 class PlanAdvisorJsonModel(BaseModel):
     assistantText: str = ""
+
+
+class GoalStageModel(BaseModel):
+    id: str = ""
+    title: str = ""
+    instruction: str = ""
+    dependsOn: List[str] = Field(default_factory=list)
+    expectedOutput: str = ""
+    requiresExecution: bool = True
+
+
+class GoalDecompositionModel(BaseModel):
+    shouldDecompose: bool = False
+    stages: List[GoalStageModel] = Field(default_factory=list)
+    overallStrategy: str = ""
+    estimatedComplexity: Literal["simple", "moderate", "complex"] = "simple"
+
+
+class QualityCheckModel(BaseModel):
+    verdict: Literal["accept", "refine", "regenerate", "error_recovery"] = "accept"
+    confidence: float = 0.8
+    assessment: str = ""
+    issues: List[str] = Field(default_factory=list)
+    refinementSuggestion: Optional[str] = None
+    nextAction: Optional[str] = None
 
 
 def _normalize_chat_history(raw: Any) -> List[Dict[str, str]]:
@@ -85,6 +117,112 @@ def _history_to_langchain_messages(history: List[Dict[str, str]]) -> List[Union[
         else:
             msgs.append(AIMessage(content=h["text"]))
     return msgs
+
+
+def _decompose_goal(
+    model: Any,
+    message: str,
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+    chat_history: List[Dict[str, str]],
+) -> Optional[GoalDecompositionModel]:
+    """
+    Run the goal decomposer to split complex goals into ordered stages.
+    Returns None if decomposition is not needed or fails.
+    """
+    decomposer_md = _read_text_file("GOAL_DECOMPOSER.md").strip()
+    if not decomposer_md:
+        return None
+
+    brief = _build_workflow_brief_for_router(workflow_state, selected_node_ids)
+    user_content = (
+        f"UserGoal:\n{message}\n\n"
+        f"WorkflowBrief (JSON):\n{json.dumps(brief, ensure_ascii=False)}\n\n"
+        "Return ONLY the JSON object."
+    )
+    lc_messages: List[Any] = [SystemMessage(content=decomposer_md)]
+    lc_messages.extend(_history_to_langchain_messages(chat_history))
+    lc_messages.append(HumanMessage(content=user_content))
+
+    try:
+        structured = model.with_structured_output(GoalDecompositionModel)
+        result = structured.invoke(lc_messages)
+        if isinstance(result, GoalDecompositionModel):
+            return result if result.shouldDecompose and result.stages else None
+    except Exception:
+        pass
+
+    try:
+        resp = model.invoke(lc_messages, response_format={"type": "json_object"})
+        raw = str(getattr(resp, "content", "") or "")
+        data = json.loads(raw) if raw.strip() else {}
+        if isinstance(data, dict) and data.get("shouldDecompose") and data.get("stages"):
+            return GoalDecompositionModel(**data)
+    except Exception:
+        pass
+
+    return None
+
+
+def _check_quality(
+    model: Any,
+    user_goal: str,
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+    stage_instruction: Optional[str] = None,
+) -> Optional[QualityCheckModel]:
+    """
+    Post-execution quality checker. Inspects execution digest and decides
+    whether to accept, refine, or regenerate outputs.
+    """
+    checker_md = _read_text_file("QUALITY_CHECKER.md").strip()
+    if not checker_md:
+        return None
+
+    brief = _build_workflow_brief_for_router(workflow_state, selected_node_ids)
+    try:
+        hops = int(os.environ.get("FLOWY_CONTEXT_NEIGHBOR_HOPS", "2"))
+    except ValueError:
+        hops = 2
+    try:
+        focus_max = int(os.environ.get("FLOWY_CONTEXT_FOCUS_MAX_NODES", "72"))
+    except ValueError:
+        focus_max = 72
+
+    digest = build_execution_digest_for_llm(
+        workflow_state,
+        selected_node_ids=selected_node_ids,
+        neighbor_hops=hops,
+        focus_max_nodes=focus_max,
+    )
+
+    user_content = (
+        f"UserGoal:\n{user_goal}\n\n"
+        + (f"StageInstruction:\n{stage_instruction}\n\n" if stage_instruction else "")
+        + f"ExecutionDigest (JSON):\n{json.dumps(digest, ensure_ascii=False, indent=2)}\n\n"
+        + f"WorkflowBrief (JSON):\n{json.dumps(brief, ensure_ascii=False)}\n\n"
+        + "Return ONLY the JSON object."
+    )
+    lc_messages: List[Any] = [SystemMessage(content=checker_md), HumanMessage(content=user_content)]
+
+    try:
+        structured = model.with_structured_output(QualityCheckModel)
+        result = structured.invoke(lc_messages)
+        if isinstance(result, QualityCheckModel):
+            return result
+    except Exception:
+        pass
+
+    try:
+        resp = model.invoke(lc_messages, response_format={"type": "json_object"})
+        raw = str(getattr(resp, "content", "") or "")
+        data = json.loads(raw) if raw.strip() else {}
+        if isinstance(data, dict) and data.get("verdict"):
+            return QualityCheckModel(**data)
+    except Exception:
+        pass
+
+    return None
 
 
 @functools.lru_cache(maxsize=1)
@@ -440,12 +578,29 @@ def _read_text_file(rel_path: str) -> str:
 
 
 def _build_system_prompt() -> str:
-    # AGENTS.md already contains the hard "JSON only" rule.
     agents_md = _read_text_file("AGENTS.md").strip()
     skill_md = _read_text_file(os.path.join("skills", "flowy-plan", "SKILL.md")).strip()
-    if skill_md:
-        return agents_md + "\n\nSkill:\n" + skill_md
-    return agents_md
+    templates_md = _read_text_file("WORKFLOW_TEMPLATES.md").strip()
+    base = agents_md + ("\n\nSkill:\n" + skill_md if skill_md else "")
+
+    if templates_md:
+        base += "\n\n" + templates_md
+
+    try:
+        schema = load_planner_schema(os.path.dirname(os.path.abspath(__file__)))
+        model_caps = schema.get("modelCapabilities")
+        model_rules = schema.get("modelSelectionRules")
+        if model_caps or model_rules:
+            registry_parts: List[str] = ["\n\n## Available Model Registry"]
+            if model_caps:
+                registry_parts.append(json.dumps(model_caps, ensure_ascii=False, indent=2))
+            if model_rules:
+                registry_parts.append("Selection defaults: " + json.dumps(model_rules, ensure_ascii=False))
+            base += "\n".join(registry_parts)
+    except Exception:
+        pass
+
+    return base
 
 
 def _build_workflow_brief_for_router(
@@ -664,9 +819,9 @@ def main() -> None:
         except ValueError:
             hist_max_turns = 14
         try:
-            hist_max_chars = int(os.environ.get("FLOWY_CHAT_HISTORY_MAX_CHARS", "4000"))
+            hist_max_chars = int(os.environ.get("FLOWY_CHAT_HISTORY_MAX_CHARS", "8000"))
         except ValueError:
-            hist_max_chars = 4000
+            hist_max_chars = 8000
         chat_history = _cap_chat_history(
             _normalize_chat_history(payload.get("chatHistory")),
             max_turns=hist_max_turns,
@@ -675,6 +830,7 @@ def main() -> None:
         agent_mode = str(payload.get("agentMode") or "assist").strip().lower()
         if agent_mode not in {"plan", "assist", "auto"}:
             agent_mode = "assist"
+        run_quality_check = bool(payload.get("runQualityCheck"))
 
         openai_key = os.environ.get("OPENAI_API_KEY")
         if not openai_key:
@@ -715,7 +871,10 @@ def main() -> None:
             temperature=0.1,
         )
 
+        _emit_progress("init", f"mode={agent_mode}")
+
         if agent_mode == "plan":
+            _emit_progress("advisor", "running plan advisor")
             text = _run_plan_advisor_only(
                 model, message, workflow_state, selected_node_ids, attachments, chat_history=chat_history
             )
@@ -743,6 +902,7 @@ def main() -> None:
         # Router should run for assist/auto too, so normal conversation remains possible
         # without forcing canvas edits on every message.
         if not skip_router:
+            _emit_progress("routing", "classifying intent")
             route = _classify_user_intent(
                 router_model, message, workflow_state, selected_node_ids, chat_history
             )
@@ -770,6 +930,44 @@ def main() -> None:
 
         system_prompt = _build_system_prompt()
 
+        # --- Goal Decomposition ---
+        skip_decompose = os.environ.get("FLOWY_SKIP_DECOMPOSITION", "").strip().lower() in {"1", "true", "yes"}
+        decomposition: Optional[GoalDecompositionModel] = None
+        current_stage_instruction: Optional[str] = None
+        stage_index = int(payload.get("stageIndex") or 0)
+        prior_stages_json = payload.get("decompositionStages")
+
+        if not skip_decompose and stage_index == 0 and not prior_stages_json:
+            _emit_progress("decomposing", "analyzing goal complexity")
+            decomposition = _decompose_goal(
+                router_model, message, workflow_state, selected_node_ids, chat_history
+            )
+            if decomposition and decomposition.shouldDecompose:
+                _emit_progress("decomposed", f"{len(decomposition.stages)} stages planned")
+
+        if prior_stages_json and isinstance(prior_stages_json, list):
+            try:
+                decomposition = GoalDecompositionModel(
+                    shouldDecompose=True,
+                    stages=[GoalStageModel(**s) for s in prior_stages_json],
+                    overallStrategy="resumed",
+                    estimatedComplexity="moderate",
+                )
+            except Exception:
+                decomposition = None
+
+        planner_message = message
+        if decomposition and decomposition.shouldDecompose and decomposition.stages:
+            if stage_index < len(decomposition.stages):
+                stage = decomposition.stages[stage_index]
+                current_stage_instruction = stage.instruction
+                planner_message = (
+                    f"STAGE {stage_index + 1}/{len(decomposition.stages)}: {stage.title}\n"
+                    f"Instruction: {stage.instruction}\n\n"
+                    f"Original user goal: {message}\n"
+                    f"Overall strategy: {decomposition.overallStrategy}"
+                )
+
         parsed: Dict[str, Any] = {}
         validated_ok = False
         last_errors: List[str] = []
@@ -780,9 +978,13 @@ def main() -> None:
         except Exception:
             structured_planner = None  # type: ignore[assignment]
 
+        _emit_progress("planning", "generating operations")
+
         for attempt in range(3):
+            if attempt > 0:
+                _emit_progress("retrying", f"attempt {attempt + 1}/3")
             user_prompt = _build_user_prompt(
-                message,
+                planner_message,
                 workflow_state,
                 selected_node_ids,
                 attachments=attachments,
@@ -872,21 +1074,38 @@ def main() -> None:
             "mode": "plan",
             "assistantText": parsed.get("assistantText", ""),
             "operations": parsed.get("operations", []),
-            # Canvas edits are always auto-applied (Assist + Auto). Approval only gates execution.
             "requiresApproval": False,
             "approvalReason": "",
             "agentMode": agent_mode,
         }
-        # Always include debug so the UI can show what the model returned.
         out["debugLastText"] = last_text_debug
         if parsed.get("executeNodeIds") is not None:
             out["executeNodeIds"] = parsed.get("executeNodeIds")
-        # Execution approval is mode-driven:
-        # - Assist: wait for user approval before running nodes/workflows.
-        # - Auto: run automatically.
         out["runApprovalRequired"] = agent_mode == "assist"
         if not ok:
             out["error"] = parsed.get("error", "deep_agent_planning_failed")
+
+        if decomposition and decomposition.shouldDecompose and decomposition.stages:
+            out["decomposition"] = {
+                "stages": [s.model_dump() for s in decomposition.stages],
+                "currentStageIndex": stage_index,
+                "totalStages": len(decomposition.stages),
+                "overallStrategy": decomposition.overallStrategy,
+                "estimatedComplexity": decomposition.estimatedComplexity,
+                "isLastStage": stage_index >= len(decomposition.stages) - 1,
+            }
+
+        if run_quality_check and ok:
+            _emit_progress("quality_check", "evaluating outputs")
+            qc = _check_quality(
+                router_model,
+                message,
+                workflow_state,
+                selected_node_ids,
+                stage_instruction=current_stage_instruction,
+            )
+            if qc:
+                out["qualityCheck"] = qc.model_dump()
 
         sys.stdout.write(json.dumps(out))
     except Exception as e:

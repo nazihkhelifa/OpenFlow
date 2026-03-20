@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useRef, useLayoutEffect } from "react";
+import { ReactNode, useCallback, useRef, useLayoutEffect, useState, useEffect } from "react";
 import { Node, NodeResizer, OnResize, useReactFlow } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { getMediaDimensions, calculateAspectFitSize } from "@/utils/nodeDimensions";
@@ -31,6 +31,8 @@ interface BaseNodeProps {
   footerLeft?: ReactNode;
   /** When false, hide resize handles (e.g. when settings are in a popover) */
   resizable?: boolean;
+  /** Timestamp from _agentTouched — triggers a temporary glow animation */
+  agentTouched?: number;
 }
 
 /**
@@ -77,11 +79,27 @@ export function BaseNode({
   footerRight,
   footerLeft,
   resizable = true,
+  agentTouched: agentTouchedProp,
 }: BaseNodeProps) {
   const currentNodeIds = useWorkflowStore((state) => state.currentNodeIds);
   const setHoveredNodeId = useWorkflowStore((state) => state.setHoveredNodeId);
+  const storeAgentTouched = useWorkflowStore(
+    (state) => (state.nodes.find((n) => n.id === id)?.data as Record<string, unknown>)?._agentTouched as number | undefined
+  );
+  const agentTouched = agentTouchedProp ?? storeAgentTouched;
   const isCurrentlyExecuting = currentNodeIds.includes(id);
   const { getNodes, setNodes } = useReactFlow();
+
+  const [showAgentGlow, setShowAgentGlow] = useState(false);
+  useEffect(() => {
+    if (!agentTouched) {
+      setShowAgentGlow(false);
+      return;
+    }
+    setShowAgentGlow(true);
+    const timer = setTimeout(() => setShowAgentGlow(false), 3000);
+    return () => clearTimeout(timer);
+  }, [agentTouched]);
 
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const trackedSettingsHeightRef = useRef(0);
@@ -214,6 +232,7 @@ export function BaseNode({
           ${fullBleed && selected && !settingsExpanded ? "ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/25" : ""}
           ${!fullBleed && selected && !settingsExpanded ? "border-blue-500 ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/25" : ""}
           ${!fullBleed && selected && settingsExpanded ? "border-blue-500" : ""}
+          ${showAgentGlow ? "ring-2 ring-purple-500/60 shadow-[0_0_20px_rgba(168,85,247,0.4)] border-purple-500/50 transition-shadow duration-1000" : ""}
           ${className}
         `}
         onMouseEnter={() => {

@@ -5,8 +5,10 @@ import { createPortal } from "react-dom";
 import type { EditOperation } from "@/lib/chat/editOperations";
 import {
   AtSign,
+  Check,
   ChevronDown,
   ChevronRight,
+  Circle,
   Copy,
   LayoutGrid,
   Loader2,
@@ -27,12 +29,15 @@ import {
   loadDockedPreference,
   loadFlowyAgentMode,
   loadFlowyPanelSessions,
+  loadStyleMemory,
   saveCustomInstructions,
   saveDockedPreference,
   saveFlowyAgentMode,
   saveFlowyPanelSessions,
+  styleMemoryToPromptContext,
   type FlowyAgentMode,
   type StoredChatSession,
+  type StyleMemory,
 } from "@/lib/flowy/flowyPanelStorage";
 
 type WorkflowState = {
@@ -63,6 +68,33 @@ type WorkflowState = {
   >;
 };
 
+type DecompositionStage = {
+  id: string;
+  title: string;
+  instruction: string;
+  dependsOn: string[];
+  expectedOutput: string;
+  requiresExecution: boolean;
+};
+
+type DecompositionInfo = {
+  stages: DecompositionStage[];
+  currentStageIndex: number;
+  totalStages: number;
+  overallStrategy: string;
+  estimatedComplexity: string;
+  isLastStage: boolean;
+};
+
+type QualityCheck = {
+  verdict: "accept" | "refine" | "regenerate" | "error_recovery";
+  confidence: number;
+  assessment: string;
+  issues: string[];
+  refinementSuggestion?: string | null;
+  nextAction?: string | null;
+};
+
 type FlowyPlanResponse = {
   assistantText: string;
   operations: EditOperation[];
@@ -72,12 +104,21 @@ type FlowyPlanResponse = {
   runApprovalRequired?: boolean;
   /** `chat` = conversational reply only (no canvas ops). `plan` = edit operations (may be empty). */
   mode?: "chat" | "plan";
+  decomposition?: DecompositionInfo;
+  qualityCheck?: QualityCheck;
+};
+
+type AppliedPlanRecord = {
+  operations: string[];
+  executedNodeIds?: string[];
+  timestamp: number;
 };
 
 type ChatMsg = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  appliedPlan?: AppliedPlanRecord;
 };
 
 type ChatSession = {
@@ -155,6 +196,47 @@ const FLOWY_CHAT_MD_COMPONENTS: Components = {
     );
   },
 };
+
+function AppliedPlanWidget({ plan }: { plan: AppliedPlanRecord }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="mx-5 mt-1.5">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        className="group flex w-fit cursor-pointer items-center gap-1.5 rounded-lg py-0.5 text-left transition-colors hover:opacity-90"
+      >
+        <div className="flex size-5 shrink-0 items-center justify-center text-emerald-400/70">
+          <SquarePlus className="size-3" strokeWidth={2} aria-hidden />
+        </div>
+        <span className="text-[11px] font-medium text-emerald-400/80">
+          {plan.operations.length} operation{plan.operations.length !== 1 ? "s" : ""} applied
+        </span>
+        {plan.executedNodeIds && plan.executedNodeIds.length > 0 && (
+          <span className="text-[10px] text-emerald-400/50">
+            + {plan.executedNodeIds.length} executed
+          </span>
+        )}
+        <ChevronRight
+          className={`size-3 text-neutral-500 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+          strokeWidth={2}
+          aria-hidden
+        />
+      </button>
+      {isExpanded && (
+        <div className="ml-2 mt-1 border-l border-white/10 pl-3 pb-1">
+          {plan.operations.map((desc, i) => (
+            <div key={i} className="flex items-start gap-1.5 py-0.5">
+              <div className="mt-[5px] size-1.5 shrink-0 rounded-full bg-emerald-500/50" />
+              <span className="text-[11px] leading-snug text-neutral-400">{desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function FlowyAgentPanel({
   isOpen,
@@ -249,12 +331,20 @@ export function FlowyAgentPanel({
     visible: true,
   });
   const [isExecutingStep, setIsExecutingStep] = useState(false);
+  const [cursorActionLabel, setCursorActionLabel] = useState<string>("agent");
+  const [plannerProgress, setPlannerProgress] = useState<string | null>(null);
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
   const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
   const activePlanAbortRef = useRef<AbortController | null>(null);
   const lastGoalRef = useRef<string | null>(null);
   const autoContinueCountRef = useRef<number>(0);
+  const [activeDecomposition, setActiveDecomposition] = useState<DecompositionInfo | null>(null);
+  const activeDecompositionRef = useRef<DecompositionInfo | null>(null);
+  activeDecompositionRef.current = activeDecomposition;
+  const [styleMemory, setStyleMemory] = useState<StyleMemory | null>(null);
+  const styleMemoryRef = useRef<StyleMemory | null>(null);
+  styleMemoryRef.current = styleMemory;
 
   // Hydrate sessions from localStorage once on client (after SSR default seed).
   useEffect(() => {
@@ -263,6 +353,7 @@ export function FlowyAgentPanel({
       setSessions(loaded.sessions as ChatSession[]);
       setActiveSessionId(loaded.activeId);
     }
+    setStyleMemory(loadStyleMemory());
     setStorageReady(true);
   }, []);
 
@@ -378,11 +469,10 @@ export function FlowyAgentPanel({
   }, []);
 
   const requestPlan = useCallback(
-    async (message: string, opts?: { suppressUserEcho?: boolean }) => {
+    async (message: string, opts?: { suppressUserEcho?: boolean; stageIndex?: number; decompositionStages?: DecompositionStage[]; runQualityCheck?: boolean }) => {
       const trimmed = message.trim();
       if (!trimmed || isPlanning) return;
 
-      // Bind this request to the chat that was active when it started (survives session switches while the plan API is in flight).
       const sessionId = activeSessionIdRef.current;
       const agentModeAtStart = flowyAgentModeRef.current;
 
@@ -397,6 +487,7 @@ export function FlowyAgentPanel({
 
       setErrorMessage(null);
       setIsPlanning(true);
+      setPlannerProgress(null);
       activePlanAbortRef.current?.abort();
       const abortController = new AbortController();
       activePlanAbortRef.current = abortController;
@@ -407,20 +498,32 @@ export function FlowyAgentPanel({
       }
 
       try {
+        const styleCtx = styleMemoryRef.current ? styleMemoryToPromptContext(styleMemoryRef.current) : "";
+        let fullMessage = trimmed;
+        if (customInstructions.trim().length || styleCtx) {
+          const parts: string[] = [];
+          if (customInstructions.trim().length) parts.push(`Custom instructions:\n${customInstructions.trim()}`);
+          if (styleCtx) parts.push(styleCtx);
+          parts.push(`User request:\n${trimmed}`);
+          fullMessage = parts.join("\n\n");
+        }
+        const body: Record<string, unknown> = {
+          message: fullMessage,
+          workflowState: stateForRequest,
+          selectedNodeIds: contextNodeIds,
+          chatHistory: chatHistoryPayload,
+          agentMode: agentModeAtStart,
+          attachments: imageAttachments,
+        };
+        if (opts?.stageIndex !== undefined) body.stageIndex = opts.stageIndex;
+        if (opts?.decompositionStages) body.decompositionStages = opts.decompositionStages;
+        if (opts?.runQualityCheck) body.runQualityCheck = true;
+
         const res = await fetch("/api/flowy/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: abortController.signal,
-          body: JSON.stringify({
-            message: customInstructions.trim().length
-              ? `Custom instructions:\n${customInstructions.trim()}\n\nUser request:\n${trimmed}`
-              : trimmed,
-            workflowState: stateForRequest,
-            selectedNodeIds: contextNodeIds,
-            chatHistory: chatHistoryPayload,
-            agentMode: agentModeAtStart,
-            attachments: imageAttachments,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!res.ok) {
@@ -428,9 +531,13 @@ export function FlowyAgentPanel({
           throw new Error(err?.error || `Plan failed (${res.status})`);
         }
 
-        const data = (await res.json()) as ({ ok: boolean; error?: string } & FlowyPlanResponse) & {
+        const data = (await res.json()) as ({ ok: boolean; error?: string; progressEvents?: Array<{ progress: string; detail: string }> } & FlowyPlanResponse) & {
           debugLastText?: string;
         };
+        if (data.progressEvents?.length) {
+          const last = data.progressEvents[data.progressEvents.length - 1];
+          setPlannerProgress(last.detail || last.progress);
+        }
         if (!data.ok) {
           const debugSnippet =
             typeof data.debugLastText === "string" && data.debugLastText.trim().length
@@ -447,6 +554,18 @@ export function FlowyAgentPanel({
           ops = [];
         }
 
+        if (data.decomposition) {
+          setActiveDecomposition(data.decomposition);
+        }
+
+        let displayText = assistantText;
+        if (data.qualityCheck) {
+          const qc = data.qualityCheck;
+          const verdictEmoji = qc.verdict === "accept" ? "✓" : qc.verdict === "refine" ? "↻" : qc.verdict === "error_recovery" ? "⚠" : "↺";
+          const qcSummary = `\n\n**Quality check** ${verdictEmoji} ${qc.verdict} (${Math.round(qc.confidence * 100)}%): ${qc.assessment}`;
+          displayText += qcSummary;
+        }
+
         if (mode === "chat") {
           setPendingOperations(null);
           setPendingExplanation(null);
@@ -456,7 +575,7 @@ export function FlowyAgentPanel({
           autoRunCompletedRef.current = true;
         } else {
           setPendingOperations(ops);
-          setPendingExplanation(assistantText);
+          setPendingExplanation(displayText);
           setExecutionIndex(0);
           setPendingExecuteNodeIds(data.executeNodeIds ?? null);
           setPendingRunApprovalRequired(data.runApprovalRequired ?? true);
@@ -465,7 +584,7 @@ export function FlowyAgentPanel({
         setCursor((c) => ({ ...c, visible: true }));
         updateSessionMessages(sessionId, (prev) => [
           ...prev,
-          { id: `a-${Date.now()}`, role: "assistant", text: assistantText },
+          { id: `a-${Date.now()}`, role: "assistant", text: displayText },
         ]);
 
         scrollToBottom();
@@ -477,6 +596,7 @@ export function FlowyAgentPanel({
           activePlanAbortRef.current = null;
         }
         setIsPlanning(false);
+        setPlannerProgress(null);
       }
     },
     [contextNodeIds, customInstructions, imageAttachments, isPlanning, scrollToBottom, stateForRequest, updateSessionMessages]
@@ -536,17 +656,6 @@ export function FlowyAgentPanel({
     },
     []
   );
-
-  const handleApprove = useCallback(() => {
-    // Keep for backward compatibility if a parent triggers bulk apply.
-    if (!pendingOperations || !onApplyEdits) return;
-    onApplyEdits(pendingOperations);
-    setPendingOperations(null);
-    setPendingExplanation(null);
-    setPendingExecuteNodeIds(null);
-    autoRunCompletedRef.current = true;
-    setExecutionIndex(0);
-  }, [onApplyEdits, pendingOperations]);
 
   const stopAutoRun = useCallback(() => {
     // Increment run id so any in-flight auto loop will stop.
@@ -645,6 +754,33 @@ export function FlowyAgentPanel({
     [nodeTypeById]
   );
 
+  const handleApprove = useCallback(() => {
+    if (!pendingOperations || !onApplyEdits) return;
+    const opDescriptions = pendingOperations.map((op) => describeOperation(op));
+    onApplyEdits(pendingOperations);
+    const planRecord: AppliedPlanRecord = {
+      operations: opDescriptions,
+      executedNodeIds: pendingExecuteNodeIds ?? undefined,
+      timestamp: Date.now(),
+    };
+    const sessionId = activeSessionIdRef.current;
+    updateSessionMessages(sessionId, (prev) => {
+      const msgs = [...prev];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "assistant" && !msgs[i].appliedPlan) {
+          msgs[i] = { ...msgs[i], appliedPlan: planRecord };
+          return msgs;
+        }
+      }
+      return msgs;
+    });
+    setPendingOperations(null);
+    setPendingExplanation(null);
+    setPendingExecuteNodeIds(null);
+    autoRunCompletedRef.current = true;
+    setExecutionIndex(0);
+  }, [describeOperation, onApplyEdits, pendingExecuteNodeIds, pendingOperations, updateSessionMessages]);
+
   const applyOperationAtIndex = useCallback(
     async (index: number) => {
       if (!pendingOperations || !onApplyEdits) return;
@@ -653,8 +789,21 @@ export function FlowyAgentPanel({
       const op = pendingOperations[index];
       setIsExecutingStep(true);
 
+      const actionLabels: Record<string, string> = {
+        addNode: "adding node",
+        removeNode: "removing",
+        updateNode: "editing",
+        addEdge: "connecting",
+        removeEdge: "disconnecting",
+        moveNode: "moving",
+        createGroup: "grouping",
+        deleteGroup: "ungrouping",
+        updateGroup: "editing group",
+        setNodeGroup: "assigning",
+      };
+      setCursorActionLabel(actionLabels[op.type] ?? "agent");
+
       try {
-        // For addNode we need to apply first, because the node doesn't exist yet.
         if (op.type !== "addNode") {
           if (op.type === "removeNode" || op.type === "updateNode") {
             const center = getNodeCenterScreen(op.nodeId);
@@ -761,6 +910,25 @@ export function FlowyAgentPanel({
   }, []);
 
   const dismissPendingPlan = useCallback(() => {
+    if (pendingOperations && pendingOperations.length > 0) {
+      const opDescriptions = pendingOperations.map((op) => describeOperation(op));
+      const planRecord: AppliedPlanRecord = {
+        operations: opDescriptions,
+        executedNodeIds: pendingExecuteNodeIds ?? undefined,
+        timestamp: Date.now(),
+      };
+      const sessionId = activeSessionIdRef.current;
+      updateSessionMessages(sessionId, (prev) => {
+        const msgs = [...prev];
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === "assistant" && !msgs[i].appliedPlan) {
+            msgs[i] = { ...msgs[i], appliedPlan: planRecord };
+            return msgs;
+          }
+        }
+        return msgs;
+      });
+    }
     stopAutoRun();
     autoApplyStartedForOpsRef.current = null;
     setPendingOperations(null);
@@ -768,7 +936,7 @@ export function FlowyAgentPanel({
     setPendingExecuteNodeIds(null);
     resetExecution();
     autoRunCompletedRef.current = true;
-  }, [resetExecution, stopAutoRun]);
+  }, [describeOperation, pendingExecuteNodeIds, pendingOperations, resetExecution, stopAutoRun, updateSessionMessages]);
 
   useEffect(() => {
     if (!isOpen || !pendingOperations) return;
@@ -794,7 +962,6 @@ export function FlowyAgentPanel({
     if (flowyAgentMode !== "auto") return;
     if (autoRunCompletedRef.current) return;
     autoRunCompletedRef.current = true;
-    // Auto-run after all edits applied
     (async () => {
       setIsRunning(true);
       try {
@@ -803,20 +970,30 @@ export function FlowyAgentPanel({
         setIsRunning(false);
       }
 
-      // Optional: continue the agent loop by planning the next minimal stage
-      // using the updated workflowState (now containing status/error/output fields).
       if (!autoContinue) return;
       const goal = lastGoalRef.current;
       if (!goal) return;
       if (autoContinueCountRef.current >= autoContinueMaxSteps) return;
       autoContinueCountRef.current += 1;
 
-      await requestPlan(
-        `Continue the workflow toward the original user goal: "${goal}". ` +
-          `Inspect the current workflow execution results (node status/error/output fields) and plan the next minimal stage. ` +
-          `If the goal is already complete, return empty operations and explain completion.`,
-        { suppressUserEcho: true }
-      );
+      await new Promise((r) => setTimeout(r, 800));
+
+      const decomp = activeDecompositionRef.current;
+      if (decomp && !decomp.isLastStage) {
+        const nextIdx = decomp.currentStageIndex + 1;
+        await requestPlan(goal, {
+          suppressUserEcho: true,
+          stageIndex: nextIdx,
+          decompositionStages: decomp.stages,
+        });
+      } else {
+        await requestPlan(
+          `Continue the workflow toward the original user goal: "${goal}". ` +
+            `Inspect the current workflow execution results (node status/error/output fields) and plan the next minimal stage. ` +
+            `If the goal is already complete, return empty operations and explain completion.`,
+          { suppressUserEcho: true, runQualityCheck: true }
+        );
+      }
     })();
   }, [
     autoContinue,
@@ -894,6 +1071,7 @@ export function FlowyAgentPanel({
     setExecutionIndex(0);
     autoRunCompletedRef.current = true;
     autoContinueCountRef.current = 0;
+    setActiveDecomposition(null);
   }, [createSession]);
 
   const modeSliderIndex = flowyAgentMode === "assist" ? 0 : flowyAgentMode === "auto" ? 1 : 2;
@@ -1083,8 +1261,39 @@ export function FlowyAgentPanel({
                   </div>
                 </div>
               </div>
+              {m.appliedPlan && m.appliedPlan.operations.length > 0 && (
+                <AppliedPlanWidget plan={m.appliedPlan} />
+              )}
             </div>
           )
+        )}
+
+        {activeDecomposition && activeDecomposition.totalStages > 1 && (
+          <div className="mx-4 my-2 rounded-xl border border-purple-800/40 bg-purple-950/20 px-3 py-2">
+            <div className="flex items-center gap-2 text-[11px] text-purple-200">
+              <Sparkles className="size-3 shrink-0" aria-hidden />
+              <span className="font-medium">
+                Stage {activeDecomposition.currentStageIndex + 1}/{activeDecomposition.totalStages}
+              </span>
+              <span className="text-purple-300/70">
+                {activeDecomposition.stages[activeDecomposition.currentStageIndex]?.title ?? ""}
+              </span>
+            </div>
+            <div className="mt-1.5 flex gap-1">
+              {activeDecomposition.stages.map((s, i) => (
+                <div
+                  key={s.id}
+                  className={`h-1 flex-1 rounded-full transition-colors ${
+                    i < activeDecomposition.currentStageIndex
+                      ? "bg-purple-400"
+                      : i === activeDecomposition.currentStageIndex
+                        ? "bg-purple-400 animate-pulse"
+                        : "bg-white/10"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
         )}
 
         {isPlanning && (
@@ -1092,7 +1301,7 @@ export function FlowyAgentPanel({
             <div className="px-6">
               <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-neutral-300">
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                <span>Flowy is thinking...</span>
+                <span>{plannerProgress || "Flowy is thinking..."}</span>
               </div>
             </div>
           </div>
@@ -1113,13 +1322,13 @@ export function FlowyAgentPanel({
                   </div>
                   <span className="text-xs font-medium leading-[1.4] tracking-[-0.12px] flowy-shimmer-text">
                     {executionIndex < pendingOperations.length
-                      ? "Applying to canvas…"
+                      ? `Building on canvas… (${executionIndex + 1}/${pendingOperations.length})`
                       : pendingExecuteNodeIds &&
                           pendingExecuteNodeIds.length > 0 &&
                           pendingRunApprovalRequired &&
                           flowyAgentMode === "assist"
-                        ? "Waiting for run approval"
-                        : "Plan applied"}
+                        ? "Ready to run — approve to execute"
+                        : "Applied to canvas ✓"}
                   </span>
                   <span
                     className={`inline-flex shrink-0 text-neutral-300 transition-transform duration-200 ${
@@ -1161,14 +1370,26 @@ export function FlowyAgentPanel({
                           status === "next"
                             ? "flowy-shimmer-text text-xs leading-tight"
                             : status === "done"
-                              ? "text-xs leading-tight text-neutral-500 line-through decoration-neutral-600"
+                              ? "text-xs leading-tight text-emerald-400/70"
                               : "text-xs leading-tight text-neutral-500";
+                        const StepIcon =
+                          status === "done"
+                            ? Check
+                            : status === "next"
+                              ? Loader2
+                              : Circle;
+                        const iconClass =
+                          status === "done"
+                            ? "size-3.5 text-emerald-400"
+                            : status === "next"
+                              ? "size-3.5 text-purple-400 animate-spin"
+                              : "size-2.5 text-neutral-600";
                         return (
                           <div key={idx} className="flex" aria-current={status === "next" ? "step" : undefined}>
                             <div className="flex w-6 shrink-0 flex-col items-center">
                               <div className={lineTop} />
-                              <div className="flex size-6 shrink-0 items-center justify-center text-neutral-400">
-                                <SquarePlus className="size-3.5" strokeWidth={2} aria-hidden />
+                              <div className="flex size-6 shrink-0 items-center justify-center">
+                                <StepIcon className={iconClass} strokeWidth={2.5} aria-hidden />
                               </div>
                               <div className={lineBot} />
                             </div>
@@ -1220,14 +1441,14 @@ export function FlowyAgentPanel({
                   <p className="truncate text-xs text-neutral-400">
                     {executionIndex < pendingOperations.length
                       ? applyMode === "auto"
-                        ? "Applying edits to the canvas…"
-                        : "How does this look? Apply each step when ready."
+                        ? `Building workflow on canvas… (${executionIndex + 1}/${pendingOperations.length})`
+                        : "Apply each step when ready."
                       : pendingExecuteNodeIds &&
                           pendingExecuteNodeIds.length > 0 &&
                           pendingRunApprovalRequired &&
                           flowyAgentMode === "assist"
-                        ? "Run the connected nodes next?"
-                        : "All proposed edits are applied."}
+                        ? "Workflow is ready — run to generate?"
+                        : "All edits applied to canvas."}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -1266,6 +1487,31 @@ export function FlowyAgentPanel({
                           await onRunNodeIds(pendingExecuteNodeIds);
                         } finally {
                           setIsRunning(false);
+                        }
+                        dismissPendingPlan();
+
+                        const goal = lastGoalRef.current;
+                        if (!goal) return;
+
+                        await new Promise((r) => setTimeout(r, 800));
+
+                        const decomp = activeDecompositionRef.current;
+                        if (decomp && !decomp.isLastStage) {
+                          const nextIdx = decomp.currentStageIndex + 1;
+                          await requestPlan(goal, {
+                            suppressUserEcho: true,
+                            stageIndex: nextIdx,
+                            decompositionStages: decomp.stages,
+                          });
+                        } else {
+                          await requestPlan(
+                            `Execution just finished for the goal: "${goal}". ` +
+                              `Check the execution digest — inspect node status, errors, and outputs. ` +
+                              `If the result looks good, summarize what was produced. ` +
+                              `If there are errors or missing outputs, fix them. ` +
+                              `If more stages are needed, plan the next one.`,
+                            { suppressUserEcho: true, runQualityCheck: true }
+                          );
                         }
                       }}
                       disabled={isRunning || isPlanning || isExecutingStep}
@@ -1720,7 +1966,7 @@ export function FlowyAgentPanel({
             className="flex items-center gap-2 rounded-md border border-purple-700/70 bg-purple-900/45 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_8px_26px_rgba(76,29,149,0.45)] backdrop-blur px-2 py-1"
           >
             <MousePointerClick size={18} color="#F3E8FF" />
-            <span className="text-[11px] text-purple-100 font-semibold">agent</span>
+            <span className="text-[11px] text-purple-100 font-semibold">{cursorActionLabel}</span>
           </div>,
           document.body
         )}

@@ -23,6 +23,12 @@ type PlanRequest = {
   projectId?: string;
   provider?: string;
   model?: string;
+  /** Multi-stage decomposition: current stage index (0-based). */
+  stageIndex?: number;
+  /** Carried decomposition stages from a prior response. */
+  decompositionStages?: Array<Record<string, unknown>>;
+  /** When true, run the quality checker after planning. */
+  runQualityCheck?: boolean;
 };
 
 const FLOWY_VENV_HINT =
@@ -95,11 +101,22 @@ function runFlowyPlanner(payload: PlanRequest): Promise<any> {
       );
     }, FLOWY_PLANNER_TIMEOUT_MS);
 
+    const progressEvents: Array<{ progress: string; detail: string }> = [];
+
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
+      const text = chunk.toString();
+      stderr += text;
+      for (const line of text.split("\n")) {
+        if (line.startsWith("FLOWY_PROGRESS:")) {
+          try {
+            const event = JSON.parse(line.slice("FLOWY_PROGRESS:".length));
+            progressEvents.push(event);
+          } catch { /* ignore malformed progress lines */ }
+        }
+      }
     });
 
     child.on("error", (err) => {
@@ -119,8 +136,9 @@ function runFlowyPlanner(payload: PlanRequest): Promise<any> {
       clearTimeout(timeout);
       try {
         const parsed = JSON.parse(stdout);
-        // If the python process returned a non-zero code but still printed JSON,
-        // prefer the JSON payload so the UI can show a structured error.
+        if (progressEvents.length > 0) {
+          parsed.progressEvents = progressEvents;
+        }
         if (code !== 0) {
           resolve(parsed);
           return;

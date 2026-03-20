@@ -7,15 +7,23 @@ export const FLOWY_ACTIVE_SESSION_KEY = "openflows-flowy-active-session";
 export const FLOWY_CUSTOM_INSTRUCTIONS_KEY = "openflows-flowy-custom-instructions";
 export const FLOWY_DOCKED_KEY = "openflows-flowy-docked";
 export const FLOWY_AGENT_MODE_KEY = "openflows-flowy-agent-mode";
+export const FLOWY_STYLE_MEMORY_KEY = "openflows-flowy-style-memory";
 
 export const FLOWY_MAX_STORED_SESSIONS = 50;
 
 export type FlowyAgentMode = "plan" | "assist" | "auto";
 
+export type StoredAppliedPlan = {
+  operations: string[];
+  executedNodeIds?: string[];
+  timestamp: number;
+};
+
 export type StoredChatMsg = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  appliedPlan?: StoredAppliedPlan;
 };
 
 export type StoredChatSession = {
@@ -135,4 +143,101 @@ export function saveFlowyAgentMode(mode: FlowyAgentMode): void {
   } catch {
     /* ignore */
   }
+}
+
+export type StyleMemoryEntry = {
+  key: string;
+  value: string;
+  frequency: number;
+  lastUsed: number;
+};
+
+export type StyleMemory = {
+  preferredModels: StyleMemoryEntry[];
+  preferredStyles: StyleMemoryEntry[];
+  preferredAspectRatios: StyleMemoryEntry[];
+  commonPatterns: StyleMemoryEntry[];
+};
+
+const EMPTY_STYLE_MEMORY: StyleMemory = {
+  preferredModels: [],
+  preferredStyles: [],
+  preferredAspectRatios: [],
+  commonPatterns: [],
+};
+
+export function loadStyleMemory(): StyleMemory {
+  if (typeof window === "undefined") return { ...EMPTY_STYLE_MEMORY };
+  try {
+    const raw = localStorage.getItem(FLOWY_STYLE_MEMORY_KEY);
+    if (!raw) return { ...EMPTY_STYLE_MEMORY };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return { ...EMPTY_STYLE_MEMORY };
+    return {
+      preferredModels: Array.isArray(parsed.preferredModels) ? parsed.preferredModels : [],
+      preferredStyles: Array.isArray(parsed.preferredStyles) ? parsed.preferredStyles : [],
+      preferredAspectRatios: Array.isArray(parsed.preferredAspectRatios) ? parsed.preferredAspectRatios : [],
+      commonPatterns: Array.isArray(parsed.commonPatterns) ? parsed.commonPatterns : [],
+    };
+  } catch {
+    return { ...EMPTY_STYLE_MEMORY };
+  }
+}
+
+export function saveStyleMemory(memory: StyleMemory): void {
+  if (typeof window === "undefined") return;
+  try {
+    const trimmed: StyleMemory = {
+      preferredModels: memory.preferredModels.slice(0, 10),
+      preferredStyles: memory.preferredStyles.slice(0, 15),
+      preferredAspectRatios: memory.preferredAspectRatios.slice(0, 8),
+      commonPatterns: memory.commonPatterns.slice(0, 10),
+    };
+    localStorage.setItem(FLOWY_STYLE_MEMORY_KEY, JSON.stringify(trimmed));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function updateStyleMemoryEntry(
+  memory: StyleMemory,
+  category: keyof StyleMemory,
+  key: string,
+  value: string,
+): StyleMemory {
+  const entries = [...memory[category]];
+  const existing = entries.findIndex((e) => e.key === key);
+  if (existing >= 0) {
+    entries[existing] = {
+      ...entries[existing],
+      value,
+      frequency: entries[existing].frequency + 1,
+      lastUsed: Date.now(),
+    };
+  } else {
+    entries.push({ key, value, frequency: 1, lastUsed: Date.now() });
+  }
+  entries.sort((a, b) => b.frequency - a.frequency || b.lastUsed - a.lastUsed);
+  return { ...memory, [category]: entries };
+}
+
+export function styleMemoryToPromptContext(memory: StyleMemory): string {
+  const parts: string[] = [];
+  const top = (entries: StyleMemoryEntry[], n: number) =>
+    entries.slice(0, n).map((e) => e.value);
+
+  const models = top(memory.preferredModels, 3);
+  if (models.length) parts.push(`Preferred models: ${models.join(", ")}`);
+
+  const styles = top(memory.preferredStyles, 5);
+  if (styles.length) parts.push(`Preferred styles: ${styles.join(", ")}`);
+
+  const ratios = top(memory.preferredAspectRatios, 3);
+  if (ratios.length) parts.push(`Preferred aspect ratios: ${ratios.join(", ")}`);
+
+  const patterns = top(memory.commonPatterns, 3);
+  if (patterns.length) parts.push(`Common workflow patterns: ${patterns.join(", ")}`);
+
+  if (!parts.length) return "";
+  return `User style preferences (learned from prior sessions):\n${parts.join("\n")}`;
 }

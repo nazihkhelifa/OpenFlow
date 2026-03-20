@@ -919,8 +919,6 @@ export function WorkflowCanvas() {
 
   // Handle applying edit operations from chat
   const handleApplyEdits = useCallback((operations: EditOperation[]) => {
-    // During prompt "typing" animation we may apply many small updateNode operations.
-    // Tag those operations so we don't spam snapshots/toasts and keep UI smooth.
     const typedChunk =
       operations?.some((op) => (op as any)?.__flowyTypingChunk === true) ||
       operations?.some((op) => (op as any)?.__flowyTyping === true) ||
@@ -931,17 +929,27 @@ export function WorkflowCanvas() {
       operations?.some((op) => (op as any)?.__flowyTypingStart === true);
 
     if (shouldCaptureSnapshot) {
-      captureSnapshot(); // Snapshot before AI edits (once per step)
+      captureSnapshot();
     }
     const result = applyEditOperations(operations);
-    if (!typedChunk && result.applied > 0) {
-      showToast(`Applied ${result.applied} edit(s)`, "success");
+    if (!typedChunk && result.applied > 1) {
+      showToast(`Applied ${result.applied} edits`, "success");
     }
     if (result.skipped.length > 0) {
       console.warn('Skipped operations:', result.skipped);
     }
+
+    // Auto-pan to the first newly added node so the user sees it appear on canvas
+    if (!typedChunk) {
+      const addedNode = operations.find((op) => op.type === "addNode");
+      if (addedNode && addedNode.type === "addNode" && addedNode.position) {
+        const pos = addedNode.position;
+        setCenter(pos.x + 150, pos.y + 75, { duration: 400, zoom: getViewport().zoom });
+      }
+    }
+
     return result;
-  }, [captureSnapshot, applyEditOperations, showToast]);
+  }, [captureSnapshot, applyEditOperations, showToast, setCenter, getViewport]);
 
   // Handle node selection from drop menu
   const handleMenuSelect = useCallback(

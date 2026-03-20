@@ -39,14 +39,24 @@ Use `createGroup`/`setNodeGroup`/`updateGroup`/`deleteGroup` for grouping workfl
 
 ## Prompt writing guidance
 When writing or updating prompts in node data:
-- Extract user intent first (subject/action, setting, style, constraints).
+- Extract **every** visual/creative detail from the user's message — subjects, composition, textures, typography, color palette, mood, style references, era, materials, layout, foreground/background elements.
+- **Never shorten or summarize** a detailed user prompt. The generation prompt must be **at least as detailed** as the user's input — organized and structured, never compressed.
+- For **short** user prompts (under ~30 words): enrich with reasonable creative detail matching the stated style/mood — add composition, lighting, textures, atmosphere.
+- For **detailed** user prompts (over ~30 words): **preserve every element** they mentioned, organize into a structured format with clear sections or enumerated elements. Do not drop details, do not paraphrase into something shorter.
+- For **very specific** prompts with named elements or art direction terms: treat those as **hard requirements** — they must appear verbatim or nearly verbatim.
+- For **mixed** prompts (some parts detailed, some vague): preserve the detailed parts verbatim, enrich the vague parts.
+- For **multi-subject** prompts: enumerate each subject with its own attributes; do not collapse multiple subjects into a generic description.
+- Structure any detailed prompt in layers: (1) opening line — core subject/format/setting, (2) subject details — who/what with appearance and placement, (3) design elements — each visual element listed individually, (4) color & lighting — palette, contrast, temperature, (5) style keywords — comma-separated mood/era/style tags.
 - Use modality-specific structure:
-  - image prompt: subject + setting + aesthetic (+ optional lighting/composition)
-  - video prompt: subject/action + setting + camera/motion + pacing/mood
+  - image prompt (short): subject + setting + aesthetic (+ optional lighting/composition)
+  - image prompt (detailed): scene description → subject(s) with attributes → design elements (listed individually) → textures/materials → color/contrast/lighting → style keywords
+  - video prompt: subject/action + setting + camera/motion + pacing/mood (include camera behavior and motion pacing)
   - text prompt: deliverable + context + constraints
-- Keep prompts concrete and concise; avoid chatty filler.
+- Remove only conversational filler ("please", "I want", "can you make") — keep all creative/visual content.
+- Extract technical parameters (`--ar 4:5`, resolution, duration) to node settings fields, not in the prompt text.
 - Anchor to provided references when user asks for similarity/preservation.
 - Avoid prompt drift: do not add unrelated objects or themes.
+- **Never truncate, summarize, or paraphrase a detailed user prompt into something shorter.** Structure it better — never make it smaller.
 
 ## Toolbar-style actions
 Map UI toolbar intents to planner outputs:
