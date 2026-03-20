@@ -333,8 +333,9 @@ def main() -> None:
                         "error": "OPENAI_API_KEY missing; cannot run deep planner.",
                         "assistantText": "Deep planner unavailable (missing OPENAI_API_KEY).",
                         "operations": [],
-                        "requiresApproval": True,
-                        "approvalReason": "No planning possible without an LLM.",
+                        "requiresApproval": False,
+                        "approvalReason": "",
+                        "runApprovalRequired": agent_mode == "assist",
                     }
                 )
             )
@@ -479,20 +480,19 @@ def main() -> None:
             "mode": "plan",
             "assistantText": parsed.get("assistantText", ""),
             "operations": parsed.get("operations", []),
-            "requiresApproval": True,
-            "approvalReason": parsed.get("approvalReason", "Assist mode: user approval required."),
+            # Canvas edits are always auto-applied (Assist + Auto). Approval only gates execution.
+            "requiresApproval": False,
+            "approvalReason": "",
             "agentMode": agent_mode,
         }
         # Always include debug so the UI can show what the model returned.
         out["debugLastText"] = last_text_debug
         if parsed.get("executeNodeIds") is not None:
             out["executeNodeIds"] = parsed.get("executeNodeIds")
-        raw_run_approval = parsed.get("runApprovalRequired")
-        if raw_run_approval is not None:
-            out["runApprovalRequired"] = bool(raw_run_approval)
-        else:
-            # Auto mode: prefer running without an extra approval gate unless the model sets it.
-            out["runApprovalRequired"] = agent_mode != "auto"
+        # Execution approval is mode-driven:
+        # - Assist: wait for user approval before running nodes/workflows.
+        # - Auto: run automatically.
+        out["runApprovalRequired"] = agent_mode == "assist"
         if not ok:
             out["error"] = parsed.get("error", "deep_agent_planning_failed")
 
@@ -505,8 +505,9 @@ def main() -> None:
                     "error": f"Deep planner crashed: {e}",
                     "assistantText": "Deep planner crashed. Try again.",
                     "operations": [],
-                    "requiresApproval": True,
-                    "approvalReason": "Planning failed.",
+                    "requiresApproval": False,
+                    "approvalReason": "",
+                    "runApprovalRequired": False,
                     "debugLastText": (locals().get("last_text_debug") or "")[:2000],
                 }
             )

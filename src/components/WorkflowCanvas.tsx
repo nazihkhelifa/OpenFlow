@@ -307,13 +307,16 @@ export function WorkflowCanvas() {
       const isDimmed = dimmedNodeIds.has(node.id);
       const dimClass = isDimmed ? "switch-dimmed" : "";
 
-      // Preserve existing className if any, add/remove dimmed class
-      const baseClass = (node.className || "").replace(/\bswitch-dimmed\b/g, "").trim();
-      const newClass = dimClass ? `${baseClass} ${dimClass}`.trim() : baseClass;
+      // Preserve existing className if any, add/remove dimmed class.
+      // Normalize empty className to `undefined` to avoid churn (`""` vs `undefined`)
+      // which can cause React Flow store update loops.
+      const baseClass = (node.className ?? "").replace(/\bswitch-dimmed\b/g, "").trim();
+      const mergedClass = dimClass ? `${baseClass} ${dimClass}`.trim() : baseClass;
+      const normalizedClassName = mergedClass.length > 0 ? mergedClass : undefined;
 
-      // Only create new node object if className changed
-      if (node.className === newClass) return node;
-      return { ...node, className: newClass };
+      // Only create a new node object if className truly changed.
+      if (node.className === normalizedClassName) return node;
+      return { ...node, className: normalizedClassName };
     });
   }, [nodes, dimmedNodeIds]);
 

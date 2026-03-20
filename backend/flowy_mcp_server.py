@@ -165,7 +165,6 @@ def _heuristic_plan_edits(
     def is_image_source_type(node_type: Optional[str]) -> bool:
         # Nodes that can output an "image" handle in our current canvas model
         return node_type in {
-            "imageInput",
             "mediaInput",
             "generateImage",
             "generate3d",
@@ -175,7 +174,7 @@ def _heuristic_plan_edits(
         }
 
     # Intent detection: when user asks to connect/add "genre image" (or similar),
-    # we should add an imageInput source and wire it to the prompt's image input.
+    # we should add a mediaInput source and wire it to the prompt's image input.
     wants_new_image_source = (
         "genre" in message_l
         or "reference image" in message_l
@@ -254,7 +253,7 @@ def _heuristic_plan_edits(
             prompt_target_id = prompt_target_candidates[0] if prompt_target_candidates else None
 
             prompt_id = prompt_target_id or "flowy-prompt-1"
-            genre_image_id = "flowy-genre-imageInput-1"
+            genre_image_id = "flowy-genre-mediaInput-1"
 
             operations: List[Dict[str, Any]] = []
 
@@ -318,11 +317,11 @@ def _heuristic_plan_edits(
 
             # Add the genre image input and connect it to prompt.image
             add_node(
-                "imageInput",
+                "mediaInput",
                 genre_image_id,
                 x0 + 260,
                 y0,
-                {"customTitle": "Genre Image"},
+                {"customTitle": "Genre Image", "mode": "image"},
             )
             add_edge_local(genre_image_id, prompt_id, "image", "image")
 
@@ -446,36 +445,36 @@ def _heuristic_plan_edits(
 
     if is_empty:
         if "video" in message_l or "movie" in message_l:
-            img_id = "flowy-imageInput-1"
+            img_id = "flowy-mediaInput-1"
             prompt_id = "flowy-prompt-1"
             vid_id = "flowy-generateVideo-1"
 
-            add_node("imageInput", img_id, x0, y0, {"customTitle": "Source Image"})
+            add_node("mediaInput", img_id, x0, y0, {"customTitle": "Source Image", "mode": "image"})
             add_node("prompt", prompt_id, x0 + 260, y0, {"customTitle": "Prompt", "prompt": message})
             add_node("generateVideo", vid_id, x0 + 520, y0, {"customTitle": "Generate Video"})
 
-            # imageInput.image -> prompt.image
+            # mediaInput.image -> prompt.image
             add_edge(img_id, prompt_id, "image", "image")
             # prompt.text -> generateVideo.text
             add_edge(prompt_id, vid_id, "text", "text")
-            # imageInput.image -> generateVideo.image
+            # mediaInput.image -> generateVideo.image
             add_edge(img_id, vid_id, "image", "image")
             return "Building an image-to-video workflow.", operations
 
         # Default: image workflow
-        img_id = "flowy-imageInput-1"
+        img_id = "flowy-mediaInput-1"
         prompt_id = "flowy-prompt-1"
         gen_id = "flowy-generateImage-1"
 
-        add_node("imageInput", img_id, x0, y0, {"customTitle": "Source Image"})
+        add_node("mediaInput", img_id, x0, y0, {"customTitle": "Source Image", "mode": "image"})
         add_node("prompt", prompt_id, x0 + 260, y0, {"customTitle": "Prompt", "prompt": message})
         add_node("generateImage", gen_id, x0 + 520, y0, {"customTitle": "Generate Image"})
 
-        # imageInput.image -> prompt.image
+        # mediaInput.image -> prompt.image
         add_edge(img_id, prompt_id, "image", "image")
         # prompt.text -> generateImage.text
         add_edge(prompt_id, gen_id, "text", "text")
-        # imageInput.image -> generateImage.image
+        # mediaInput.image -> generateImage.image
         add_edge(img_id, gen_id, "image", "image")
         return "Building an image-to-image workflow.", operations
 

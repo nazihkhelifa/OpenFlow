@@ -2,8 +2,6 @@
   "$comment": "Single source for Flowy planner allowlists. Python loads this file; TS tests keep it aligned with NodeType.",
   "nodeTypes": [
     "mediaInput",
-    "imageInput",
-    "audioInput",
     "annotation",
     "comment",
     "prompt",

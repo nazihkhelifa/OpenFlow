@@ -23,7 +23,7 @@ Use `removeNode` to clear/reset the canvas.
 
 ## Genre / reference image requests
 If the message requests a "genre image" or "reference image":
-- add an `imageInput` node titled "Genre Image" (via `customTitle`)
+- add a `mediaInput` node titled "Genre Image" (via `customTitle`, with image mode)
 - connect it to a `prompt` node's `image` input handle (if a prompt node exists or you add one)
 - connect `prompt.text` to a generation node's `text` input handle (if one exists or you add one)
 

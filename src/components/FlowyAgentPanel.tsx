@@ -165,6 +165,7 @@ export function FlowyAgentPanel({
   const [isExecutingStep, setIsExecutingStep] = useState(false);
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
+  const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
   const lastGoalRef = useRef<string | null>(null);
   const autoContinueCountRef = useRef<number>(0);
 
@@ -554,6 +555,7 @@ export function FlowyAgentPanel({
 
   const dismissPendingPlan = useCallback(() => {
     stopAutoRun();
+    autoApplyStartedForOpsRef.current = null;
     setPendingOperations(null);
     setPendingExplanation(null);
     setPendingExecuteNodeIds(null);
@@ -612,6 +614,10 @@ export function FlowyAgentPanel({
     if (applyMode !== "auto") return;
     if (!pendingOperations || !onApplyEdits) return;
     if (executionIndex !== 0) return;
+    // Guard against starting duplicate auto-apply loops for the same plan.
+    // This can happen when dependencies update before executionIndex increments.
+    if (autoApplyStartedForOpsRef.current === pendingOperations) return;
+    autoApplyStartedForOpsRef.current = pendingOperations;
 
     const runId = autoRunIdRef.current + 1;
     autoRunIdRef.current = runId;
@@ -624,6 +630,12 @@ export function FlowyAgentPanel({
     })();
     // No cleanup needed beyond runId checks.
   }, [applyMode, executionIndex, isOpen, onApplyEdits, pendingOperations, applyOperationAtIndex]);
+
+  useEffect(() => {
+    if (!pendingOperations) {
+      autoApplyStartedForOpsRef.current = null;
+    }
+  }, [pendingOperations]);
 
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => b.createdAt - a.createdAt),
@@ -669,7 +681,7 @@ export function FlowyAgentPanel({
       ? "Brainstorm workflows, prompts, and tradeoffs. Use @ to mention nodes."
       : flowyAgentMode === "auto"
         ? "Describe the outcome — Flowy can build and run. Use @ to mention nodes."
-        : "Co-build the canvas with approval each step. Use @ to mention nodes.";
+        : "Flowy auto-builds the canvas; approve before running nodes. Use @ to mention nodes.";
 
   if (!isOpen) return null;
 
@@ -823,7 +835,7 @@ export function FlowyAgentPanel({
               </>
             ) : (
               <>
-                <p className="text-neutral-400">Assist mode — step-by-step canvas changes with your approval.</p>
+                <p className="text-neutral-400">Assist mode — Flowy auto-applies canvas edits, asks before run.</p>
                 <p className="text-xs mt-2">Example: “Add three nanoBanana nodes from this image, then I’ll pick one.”</p>
               </>
             )}
@@ -876,7 +888,12 @@ export function FlowyAgentPanel({
                   <span className="text-xs font-medium leading-[1.4] tracking-[-0.12px] flowy-shimmer-text">
                     {executionIndex < pendingOperations.length
                       ? "Applying to canvas…"
-                      : "Waiting for approval"}
+                      : pendingExecuteNodeIds &&
+                          pendingExecuteNodeIds.length > 0 &&
+                          pendingRunApprovalRequired &&
+                          flowyAgentMode === "assist"
+                        ? "Waiting for run approval"
+                        : "Plan applied"}
                   </span>
                   <span
                     className={`inline-flex shrink-0 text-neutral-300 transition-transform duration-200 ${
@@ -982,7 +999,7 @@ export function FlowyAgentPanel({
                       : pendingExecuteNodeIds &&
                           pendingExecuteNodeIds.length > 0 &&
                           pendingRunApprovalRequired &&
-                          applyMode === "manual"
+                          flowyAgentMode === "assist"
                         ? "Run the connected nodes next?"
                         : "All proposed edits are applied."}
                   </p>
@@ -1144,7 +1161,7 @@ export function FlowyAgentPanel({
         >
           <span className="text-neutral-500">Flowy is experimental.</span>{" "}
           <span className="text-neutral-600">
-            Chat = advice only · Assist = step-by-step · Auto = build &amp; run
+            Chat = advice only · Assist = auto-build + approve run · Auto = build &amp; run
           </span>
         </div>
       </div>

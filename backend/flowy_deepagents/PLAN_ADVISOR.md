@@ -22,4 +22,4 @@ Return **only** valid JSON: `{"assistantText":"<your full reply>"}`.
 - Do **not** include `operations`, `executeNodeIds`, or other planner fields.
 
 ## Style
-If the user asks to “build” something, give **numbered steps** and exact prompts to type, e.g. “1. Add an imageInput node… 2. Add a prompt node… 3. Connect …”.
+If the user asks to “build” something, give **numbered steps** and exact prompts to type, e.g. “1. Add a mediaInput node (image mode)… 2. Add a prompt node… 3. Connect …”.
