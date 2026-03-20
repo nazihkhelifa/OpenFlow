@@ -88,7 +88,8 @@ export function applyEditOperations(
           type: operation.nodeType,
           position,
           data: nodeData,
-          measured: dimensions,
+          // Match manual addNode path: React Flow should get default size via style.
+          style: { width: dimensions.width, height: dimensions.height },
         };
 
         nodes.push(newNode);
