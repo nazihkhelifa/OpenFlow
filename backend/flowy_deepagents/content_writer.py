@@ -340,6 +340,117 @@ def _materialize_attachment_operations(
     return out
 
 
+def _coerce_model_catalog(raw: Any) -> Dict[str, List[Dict[str, str]]]:
+    out: Dict[str, List[Dict[str, str]]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for node_type, entries in raw.items():
+        if not isinstance(node_type, str) or not isinstance(entries, list):
+            continue
+        cleaned: List[Dict[str, str]] = []
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            provider = str(e.get("provider") or "").strip()
+            model_id = str(e.get("modelId") or "").strip()
+            display = str(e.get("displayName") or model_id).strip()
+            if not model_id:
+                continue
+            cleaned.append({"provider": provider, "modelId": model_id, "displayName": display})
+        if cleaned:
+            out[node_type] = cleaned
+    return out
+
+
+def _pick_best_model_alias(raw_value: str, candidates: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    query = (raw_value or "").strip().lower()
+    if not query or not candidates:
+        return None
+    query_norm = query.replace("-", "").replace("_", "").replace(" ", "")
+    best_score = -1
+    best: Optional[Dict[str, str]] = None
+    for c in candidates:
+        model_id = (c.get("modelId") or "").lower()
+        display = (c.get("displayName") or "").lower()
+        provider = (c.get("provider") or "").lower()
+        hay = " ".join([model_id, display, provider]).strip()
+        hay_norm = hay.replace("-", "").replace("_", "").replace(" ", "")
+        score = 0
+        if query == model_id or query == display:
+            score += 100
+        if query in hay:
+            score += 40
+        if query_norm == hay_norm:
+            score += 80
+        if query_norm in hay_norm:
+            score += 30
+        for token in [t for t in query.split() if len(t) > 1]:
+            if token in hay:
+                score += 8
+        if score > best_score:
+            best_score = score
+            best = c
+    return best if best_score > 0 else None
+
+
+def _normalize_operation_models(
+    operations: List[Dict[str, Any]], model_catalog: Dict[str, List[Dict[str, str]]]
+) -> List[Dict[str, Any]]:
+    if not operations or not model_catalog:
+        return operations
+    out: List[Dict[str, Any]] = []
+    for op in operations:
+        if not isinstance(op, dict):
+            out.append(op)
+            continue
+        op_type = op.get("type")
+        if op_type not in {"addNode", "updateNode"}:
+            out.append(op)
+            continue
+        node_type = op.get("nodeType") if op_type == "addNode" else None
+        data = op.get("data")
+        if not isinstance(data, dict):
+            out.append(op)
+            continue
+        resolved_node_type = node_type
+        if op_type == "updateNode" and isinstance(op.get("nodeType"), str):
+            resolved_node_type = op.get("nodeType")
+        if not isinstance(resolved_node_type, str):
+            # Try broad matching when nodeType is absent (common in updateNode).
+            # We'll use a merged candidate pool and still write exact selectedModel.
+            merged_candidates: List[Dict[str, str]] = []
+            for vals in model_catalog.values():
+                merged_candidates.extend(vals)
+            candidates = merged_candidates
+        else:
+            candidates = model_catalog.get(resolved_node_type, [])
+        if not candidates:
+            out.append(op)
+            continue
+        next_data = dict(data)
+        raw_model = None
+        if isinstance(next_data.get("model"), str):
+            raw_model = next_data.get("model")
+        elif isinstance(next_data.get("selectedModel"), dict):
+            sm = next_data.get("selectedModel") or {}
+            if isinstance(sm.get("modelId"), str):
+                raw_model = sm.get("modelId")
+            elif isinstance(sm.get("displayName"), str):
+                raw_model = sm.get("displayName")
+        if isinstance(raw_model, str):
+            chosen = _pick_best_model_alias(raw_model, candidates)
+            if chosen:
+                next_data["selectedModel"] = {
+                    "provider": chosen.get("provider") or "",
+                    "modelId": chosen.get("modelId") or "",
+                    "displayName": chosen.get("displayName") or chosen.get("modelId") or "",
+                }
+                # Keep legacy model field aligned for nodes that still use it.
+                next_data["model"] = chosen.get("modelId") or raw_model
+        out.append({**op, "data": next_data})
+    return out
+
+
 def _safe_extract_first_json_object(text: str) -> Dict[str, Any]:
     if not text:
         return {}
@@ -490,14 +601,24 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
 
 
 def _validate_toolbar_intent_plan(
-    message: str, parsed: Dict[str, Any], operations: List[Dict[str, Any]]
+    message: str,
+    parsed: Dict[str, Any],
+    operations: List[Dict[str, Any]],
+    workflow_state: Optional[Dict[str, Any]] = None,
+    selected_node_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Validate that common toolbar requests are expressed with the expected
     operation pattern so the UI can apply them deterministically.
     """
     errors: List[str] = []
-    msg = (message or "").lower()
+    raw_msg = message or ""
+    marker = "User request:"
+    marker_idx = raw_msg.rfind(marker)
+    if marker_idx != -1:
+        msg = raw_msg[marker_idx + len(marker) :].strip().lower()
+    else:
+        msg = raw_msg.lower()
 
     add_nodes = [op for op in operations if isinstance(op, dict) and op.get("type") == "addNode"]
     add_edges = [op for op in operations if isinstance(op, dict) and op.get("type") == "addEdge"]
@@ -565,7 +686,23 @@ def _validate_toolbar_intent_plan(
             errors.append("Extract-frame request must add a reference edge to the frame node.")
 
     if asks_model_tune and len(update_nodes) == 0:
-        errors.append("Model/settings request should include updateNode operations.")
+        nodes = (workflow_state or {}).get("nodes") if isinstance(workflow_state, dict) else []
+        selected = set(selected_node_ids or [])
+        tunable_types = {"generateImage", "generateVideo", "generate3d", "generateAudio", "prompt"}
+        has_selected_tunable = any(
+            isinstance(n, dict)
+            and n.get("id") in selected
+            and n.get("type") in tunable_types
+            for n in (nodes or [])
+        )
+        has_any_tunable = any(
+            isinstance(n, dict) and n.get("type") in tunable_types
+            for n in (nodes or [])
+        )
+        # Only enforce updateNode when there's an existing tunable node to edit.
+        # On empty/new canvases, allowing addNode plans avoids false validation failures.
+        if has_selected_tunable or has_any_tunable:
+            errors.append("Model/settings request should include updateNode operations.")
 
     if asks_ease:
         touched_ease = any(
@@ -716,6 +853,7 @@ def _build_user_prompt(
     workflow_state: Dict[str, Any],
     selected_node_ids: List[str],
     attachments: Optional[List[Dict[str, str]]] = None,
+    model_catalog: Optional[Dict[str, List[Dict[str, str]]]] = None,
     *,
     closing_instruction: str,
 ) -> str:
@@ -745,6 +883,7 @@ def _build_user_prompt(
     digest_json = json.dumps(digest, ensure_ascii=False, indent=2)
 
     attachments = attachments or []
+    model_catalog = model_catalog or {}
     attachments_brief = (
         "Uploaded images (JSON):\n"
         + json.dumps(
@@ -763,6 +902,13 @@ def _build_user_prompt(
     return (
         f"Message: {message}\n\n"
         + attachments_brief
+        + (
+            "Project model catalog (use exact modelId values from here when setting/changing models):\n"
+            + json.dumps(model_catalog, ensure_ascii=False, indent=2)
+            + "\n\n"
+            if model_catalog
+            else ""
+        )
         + "Execution digest (focused nodes): status, errors, prompt previews, hasOutput* flags — no media payloads.\n"
         f"{digest_json}\n\n"
         + "Current workflow (JSON). Use nodesDetailed for full context near the user's selection; "
@@ -786,6 +932,7 @@ def _run_plan_advisor_only(
     workflow_state: Dict[str, Any],
     selected_node_ids: List[str],
     attachments: Optional[List[Dict[str, str]]] = None,
+    model_catalog: Optional[Dict[str, List[Dict[str, str]]]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     advisor = _read_text_file("PLAN_ADVISOR.md").strip()
@@ -797,6 +944,7 @@ def _run_plan_advisor_only(
         workflow_state,
         selected_node_ids,
         attachments=attachments,
+        model_catalog=model_catalog,
         closing_instruction=CLOSE_PLAN_ADVISOR,
     )
     hist = chat_history or []
@@ -835,6 +983,7 @@ def main() -> None:
         workflow_state = payload.get("workflowState") or {"nodes": [], "edges": []}
         selected_node_ids = payload.get("selectedNodeIds") or []
         attachments = _coerce_image_attachments(payload.get("attachments"))
+        model_catalog = _coerce_model_catalog(payload.get("modelCatalog"))
         try:
             hist_max_turns = int(os.environ.get("FLOWY_CHAT_HISTORY_MAX_TURNS", "14"))
         except ValueError:
@@ -897,7 +1046,7 @@ def main() -> None:
         if agent_mode == "plan":
             _emit_progress("advisor", "running plan advisor")
             text = _run_plan_advisor_only(
-                model, message, workflow_state, selected_node_ids, attachments, chat_history=chat_history
+                model, message, workflow_state, selected_node_ids, attachments, model_catalog=model_catalog, chat_history=chat_history
             )
             sys.stdout.write(
                 json.dumps(
@@ -932,7 +1081,7 @@ def main() -> None:
                 # route through multimodal advisor instead of a plain router reply.
                 if attachments and _looks_like_visual_assessment_request(message):
                     text = _run_plan_advisor_only(
-                        model, message, workflow_state, selected_node_ids, attachments, chat_history=chat_history
+                        model, message, workflow_state, selected_node_ids, attachments, model_catalog=model_catalog, chat_history=chat_history
                     )
                     sys.stdout.write(
                         json.dumps(
@@ -1029,6 +1178,7 @@ def main() -> None:
                 workflow_state,
                 selected_node_ids,
                 attachments=attachments,
+                model_catalog=model_catalog,
                 closing_instruction=CLOSE_CANVAS_PLAN,
             )
             if attempt > 0 and last_errors:
@@ -1074,9 +1224,16 @@ def main() -> None:
 
             operations = candidate.get("operations", [])
             operations = _materialize_attachment_operations(operations, attachments)
+            operations = _normalize_operation_models(operations, model_catalog)
             candidate["operations"] = operations
             validation = _validate_edit_operations(operations, workflow_state)
-            toolbar_validation = _validate_toolbar_intent_plan(message, candidate, operations)
+            toolbar_validation = _validate_toolbar_intent_plan(
+                message,
+                candidate,
+                operations,
+                workflow_state=workflow_state,
+                selected_node_ids=selected_node_ids,
+            )
             combined_errors = [
                 *(validation.get("errors") or []),
                 *(toolbar_validation.get("errors") or []),

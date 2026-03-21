@@ -43,6 +43,7 @@ import {
   type StoredChatSession,
   type StyleMemory,
 } from "@/lib/flowy/flowyPanelStorage";
+import { getProviderSettings, loadNodeDefaults } from "@/store/utils/localStorage";
 
 type WorkflowState = {
   nodes: Array<{
@@ -215,7 +216,22 @@ function extractStyleSignals(text: string): {
   const uniq = (arr: string[]) => Array.from(new Set(arr.map((x) => x.trim()).filter(Boolean)));
 
   const models: string[] = [];
-  const modelMatchers = ["nano banana", "imagen 4", "imagen", "seedream", "flux", "midjourney", "sdxl"];
+  const modelMatchers = [
+    "nano banana",
+    "nano-banana-2",
+    "imagen 4",
+    "imagen",
+    "seedream",
+    "flux",
+    "kling",
+    "veo",
+    "runway",
+    "midjourney",
+    "sdxl",
+    "gemini",
+    "claude",
+    "gpt-4.1",
+  ];
   for (const m of modelMatchers) {
     if (source.includes(m)) models.push(m);
   }
@@ -233,10 +249,15 @@ function extractStyleSignals(text: string): {
     "anime",
     "3d render",
     "illustration",
+    "editorial",
+    "moody",
+    "film grain",
   ];
   for (const s of styleMatchers) {
     if (source.includes(s)) styles.push(s);
   }
+  const styleFlag = source.match(/--style\s+([a-z0-9_\-]+)/i);
+  if (styleFlag?.[1]) styles.push(`style:${styleFlag[1]}`);
 
   const aspectRatios: string[] = [];
   const ratioRegex = /\b([1-9]\d?)\s*[:x\/]\s*([1-9]\d?)\b/g;
@@ -254,12 +275,64 @@ function extractStyleSignals(text: string): {
   if (source.includes("collage")) patterns.push("collage-workflow");
   if (source.includes("video")) patterns.push("video-pipeline");
   if (source.includes("brand")) patterns.push("brand-creative");
+  if (source.includes("camera") || source.includes("lens")) patterns.push("camera-direction");
+  if (source.includes("palette") || source.includes("color grade")) patterns.push("color-palette");
+  if (source.includes("close-up") || source.includes("wide shot")) patterns.push("shot-composition");
+  const cameraMatch = source.match(/\b(\d{2,3}mm|f\/\d(?:\.\d+)?)\b/g);
+  if (cameraMatch?.length) patterns.push(...cameraMatch.map((v) => `camera:${v}`));
+  const colorTerms = ["teal", "orange", "amber", "magenta", "cyan", "pastel", "monochrome", "duotone"];
+  for (const c of colorTerms) {
+    if (source.includes(c)) patterns.push(`palette:${c}`);
+  }
 
   return {
     models: uniq(models),
     styles: uniq(styles),
     aspectRatios: uniq(aspectRatios),
     patterns: uniq(patterns),
+  };
+}
+
+function buildModelCatalogFromNodeDefaults(defaults: Record<string, any>): Record<string, Array<{ provider: string; modelId: string; displayName: string }>> {
+  const collect = (entry: any): Array<{ provider: string; modelId: string; displayName: string }> => {
+    if (!entry) return [];
+    const picked: Array<{ provider: string; modelId: string; displayName: string }> = [];
+    const models = Array.isArray(entry.selectedModels)
+      ? entry.selectedModels
+      : entry.selectedModel
+        ? [entry.selectedModel]
+        : [];
+    for (const m of models) {
+      if (!m || typeof m !== "object") continue;
+      const provider = String((m as any).provider ?? "").trim();
+      const modelId = String((m as any).modelId ?? "").trim();
+      const displayName = String((m as any).displayName ?? modelId).trim();
+      if (!modelId) continue;
+      picked.push({ provider, modelId, displayName });
+    }
+    return picked;
+  };
+
+  const llmPresets = Array.isArray(defaults.llmPresets)
+    ? defaults.llmPresets
+    : defaults.llm
+      ? [defaults.llm]
+      : [];
+  const llmModels = llmPresets
+    .map((p: any) => ({
+      provider: String(p?.provider ?? "").trim(),
+      modelId: String(p?.model ?? "").trim(),
+      displayName: String(p?.model ?? "").trim(),
+    }))
+    .filter((x) => x.modelId);
+
+  return {
+    generateImage: collect(defaults.generateImage),
+    generateImageUpscale: collect((defaults as any).generateImageUpscale),
+    generateVideo: collect(defaults.generateVideo),
+    generate3d: collect(defaults.generate3d),
+    generateAudio: collect(defaults.generateAudio),
+    prompt: llmModels,
   };
 }
 
@@ -716,11 +789,46 @@ export function FlowyAgentPanel({
 
       try {
         const styleCtx = styleMemoryRef.current ? styleMemoryToPromptContext(styleMemoryRef.current) : "";
+        const nodeDefaults = loadNodeDefaults();
+        const modelCatalog = buildModelCatalogFromNodeDefaults(nodeDefaults as Record<string, any>);
+        const providerSettings = getProviderSettings();
+        const selectedNodes = (stateForRequest?.nodes ?? []).filter((n) => contextNodeIds.includes(n.id));
+        const selectedNodeControls = selectedNodes
+          .slice(0, 12)
+          .map((n) => {
+            const data = (n.data ?? {}) as Record<string, unknown>;
+            const selectedModel = data.selectedModel as Record<string, unknown> | undefined;
+            const modelText = selectedModel
+              ? `${String(selectedModel.provider ?? "provider?")}:${String(selectedModel.modelId ?? "model?")}`
+              : (typeof data.model === "string" ? data.model : "(none)");
+            const aspect = typeof data.aspectRatio === "string" ? data.aspectRatio : "(n/a)";
+            return `${n.id} [${n.type}] model=${modelText}, aspectRatio=${aspect}, resolution=${String(data.resolution ?? "(n/a)")}`;
+          })
+          .join("\n");
+        const providerEnabledSummary = Object.entries(providerSettings.providers ?? {})
+          .filter(([, cfg]) => Boolean((cfg as any)?.enabled))
+          .map(([k]) => k)
+          .join(", ");
+        const defaultsContext = [
+          "Project preferences and node defaults (current project):",
+          `Enabled providers: ${providerEnabledSummary || "(none)"}`,
+          `NodeDefaults.generateImage default: ${JSON.stringify(nodeDefaults.generateImage ?? {}, null, 0)}`,
+          `NodeDefaults.generateImageUpscale default: ${JSON.stringify((nodeDefaults as any).generateImageUpscale ?? {}, null, 0)}`,
+          `NodeDefaults.generateVideo default: ${JSON.stringify(nodeDefaults.generateVideo ?? {}, null, 0)}`,
+          `NodeDefaults.generate3d default: ${JSON.stringify(nodeDefaults.generate3d ?? {}, null, 0)}`,
+          `NodeDefaults.generateAudio default: ${JSON.stringify(nodeDefaults.generateAudio ?? {}, null, 0)}`,
+          `NodeDefaults.llm presets: ${JSON.stringify(nodeDefaults.llmPresets ?? (nodeDefaults.llm ? [nodeDefaults.llm] : []), null, 0)}`,
+          "Editable node fields policy: You may update selectedModel/model/aspectRatio/resolution/useGoogleSearch/useImageSearch/temperature/maxTokens/provider and other node-specific generation params when user intent asks for model or quality tuning.",
+          selectedNodeControls
+            ? `Selected node settings snapshot:\n${selectedNodeControls}`
+            : "Selected node settings snapshot: (none)",
+        ].join("\n");
         let fullMessage = trimmed;
-        if (customInstructions.trim().length || styleCtx) {
+        if (customInstructions.trim().length || styleCtx || defaultsContext.trim().length) {
           const parts: string[] = [];
           if (customInstructions.trim().length) parts.push(`Custom instructions:\n${customInstructions.trim()}`);
           if (styleCtx) parts.push(styleCtx);
+          if (defaultsContext.trim().length) parts.push(defaultsContext);
           parts.push(`User request:\n${trimmed}`);
           fullMessage = parts.join("\n\n");
         }
@@ -740,6 +848,7 @@ export function FlowyAgentPanel({
           chatHistory: chatHistoryPayload,
           agentMode: agentModeAtStart,
           attachments: dedupedAttachments,
+          modelCatalog,
         };
         if (opts?.stageIndex !== undefined) body.stageIndex = opts.stageIndex;
         if (opts?.decompositionStages) body.decompositionStages = opts.decompositionStages;
