@@ -425,6 +425,8 @@ export function GenerateImageToolbar({ nodeId }: GenerateImageToolbarProps) {
               <div className="h-4 w-px bg-neutral-600" />
               <div className="flex items-center gap-1 text-neutral-300">
                 <select
+                  data-id="generate-image-toolbar-aspect-ratio"
+                  data-openflow-node-id={nodeId}
                   value={data.aspectRatio || "1:1"}
                   onChange={handleAspectRatioChange}
                   className="nodrag nopan bg-neutral-700/80 text-[10px] rounded-full px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-neutral-500"

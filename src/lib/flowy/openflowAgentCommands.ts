@@ -54,6 +54,16 @@ export const OPENFLOW_UI_REGISTRY: OpenflowRegistryEntry[] = [
   { ref: "ui.projectSideToolbar", label: "Project side toolbar", dataId: "project-side-toolbar" },
   { ref: "ui.mediaPopover", label: "Media popover button", dataId: "media-popover-button" },
   { ref: "ui.annotationToolbar", label: "Annotation floating toolbar", dataId: "annotation-floating-toolbar" },
+  {
+    ref: "ui.openflowControlPanel",
+    label: "Settings control panel (top-right, single selected node)",
+    dataId: "openflow-control-panel",
+  },
+  {
+    ref: "ui.controlPanelAspectRatio",
+    label: "Generate Image — aspect ratio (control panel when one image node is selected; with inline params on, the same setting is in the node top toolbar)",
+    dataId: "control-panel-aspect-ratio",
+  },
 ];
 
 // ---------------------------------------------------------------------------

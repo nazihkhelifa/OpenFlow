@@ -43,6 +43,185 @@ function getNodeScreenCenter(nodeId: string): { x: number; y: number } | null {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
+/** React Flow adds `react-flow__node-${type}` (e.g. generateImage, prompt). */
+function getReactFlowNodeType(nodeId: string): string | null {
+  const el = document.querySelector(
+    `.react-flow__node[data-id="${CSS.escape(nodeId)}"]`
+  ) as HTMLElement | null;
+  if (!el) return null;
+  for (const cls of el.classList) {
+    if (!cls.startsWith("react-flow__node-")) continue;
+    const rest = cls.slice("react-flow__node-".length);
+    if (!rest || rest === "selected" || rest === "dragging") continue;
+    return rest;
+  }
+  return null;
+}
+
+function queryGenerateImageAspectSelect(nodeId: string): HTMLSelectElement | null {
+  const panel = document.querySelector(
+    '[data-id="control-panel-aspect-ratio"]'
+  ) as HTMLSelectElement | null;
+  if (panel) {
+    const r = panel.getBoundingClientRect();
+    // `position: fixed` controls often have null offsetParent; use geometry instead.
+    if (r.width > 0 && r.height > 0) return panel;
+  }
+  const toolbar = document.querySelector(
+    `[data-id="generate-image-toolbar-aspect-ratio"][data-openflow-node-id="${CSS.escape(nodeId)}"]`
+  ) as HTMLSelectElement | null;
+  if (toolbar) {
+    const r = toolbar.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return toolbar;
+  }
+  const inline = document.querySelector(
+    `[data-id="generate-image-inline-aspect-ratio"][data-openflow-node-id="${CSS.escape(nodeId)}"]`
+  ) as HTMLSelectElement | null;
+  if (inline) {
+    const r = inline.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return inline;
+  }
+  return null;
+}
+
+function commitNativeSelectValue(select: HTMLSelectElement, value: string): boolean {
+  const ok = Array.from(select.options).some((o) => o.value === value);
+  if (!ok) return false;
+  select.value = value;
+  select.dispatchEvent(new Event("input", { bubbles: true }));
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
+}
+
+function isControlPanelAspectSelect(select: HTMLSelectElement): boolean {
+  return select.getAttribute("data-id") === "control-panel-aspect-ratio";
+}
+
+/**
+ * Move the assist cursor to the top-right control panel (when used), then to the
+ * native &lt;select&gt;, click to open/focus, step with Arrow keys so the choice
+ * reads visibly, then commit (React still gets input/change).
+ */
+async function humanLikeSelectAspectRatio(
+  select: HTMLSelectElement,
+  aspectRatio: string,
+  deps: OrchestratorDeps
+): Promise<boolean> {
+  const { setCursor, getCursorPos, sleep } = deps;
+  const options = Array.from(select.options);
+  const targetIdx = options.findIndex((o) => o.value === aspectRatio);
+  if (targetIdx < 0) return false;
+
+  const viaControlPanel = isControlPanelAspectSelect(select);
+
+  if (viaControlPanel) {
+    const panel = document.querySelector(
+      '[data-id="openflow-control-panel"]'
+    ) as HTMLElement | null;
+    if (panel) {
+      const pr = panel.getBoundingClientRect();
+      if (pr.width > 0 && pr.height > 0) {
+        setCursor({ actionLabel: "top-right panel" });
+        const wpx = pr.left + pr.width * 0.52;
+        const wpy = pr.top + Math.min(96, Math.max(40, pr.height * 0.18));
+        await animateCursorTo(wpx, wpy, 580, setCursor, sleep, getCursorPos());
+        await sleep(280);
+      }
+    }
+  }
+
+  const rect = select.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+
+  setCursor({ actionLabel: "aspect ratio" });
+  await animateCursorTo(cx, cy, viaControlPanel ? 440 : 380, setCursor, sleep, getCursorPos());
+  await sleep(160);
+
+  emitClickRipple(cx, cy, setCursor);
+  clickElementAt(select);
+  await sleep(280);
+
+  select.focus({ preventScroll: true });
+  await sleep(120);
+
+  const fromIdx = select.selectedIndex;
+  if (fromIdx !== targetIdx) {
+    setCursor({ actionLabel: `pick ${aspectRatio}` });
+    const stepKey = targetIdx > fromIdx ? "ArrowDown" : "ArrowUp";
+    const steps = Math.abs(targetIdx - fromIdx);
+    for (let i = 0; i < steps; i++) {
+      select.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: stepKey,
+          code: stepKey,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+      await sleep(130);
+    }
+  }
+
+  const ok = commitNativeSelectValue(select, aspectRatio);
+  await sleep(ok ? 220 : 0);
+  return ok;
+}
+
+/**
+ * Control Panel only mounts when exactly one configurable node is selected in the store.
+ * Sync selection via Zustand, then perform a real canvas click so React Flow matches,
+ * and wait for the panel/toolbar to render.
+ */
+async function ensureSingleNodeSelectedOnCanvas(nodeId: string, deps: OrchestratorDeps): Promise<void> {
+  const { setCursor, getCursorPos, sleep } = deps;
+  deps.ensureNodeSelected?.(nodeId);
+
+  const nodeEl = document.querySelector(
+    `.react-flow__node[data-id="${CSS.escape(nodeId)}"]`
+  ) as HTMLElement | null;
+
+  if (nodeEl) {
+    const rect = nodeEl.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      setCursor({ actionLabel: "select node" });
+      await animateCursorTo(cx, cy, 280, setCursor, sleep, getCursorPos());
+      await sleep(70);
+      emitClickRipple(cx, cy, setCursor);
+      clickElementAt(nodeEl);
+    }
+  }
+
+  await sleep(240);
+}
+
+/**
+ * Assist mode: change image aspect ratio through the same UI users see —
+ * right-hand Control Panel when inline params are off, or the node toolbar when inline is on.
+ * (Prompt nodes use the text toolbar for LLM settings; they do not expose aspect ratio.)
+ */
+async function applyGenerateImageAspectRatioThroughChrome(
+  nodeId: string,
+  aspectRatio: string,
+  deps: OrchestratorDeps
+): Promise<boolean> {
+  const { setCursor, getCursorPos, sleep } = deps;
+  await ensureSingleNodeSelectedOnCanvas(nodeId, deps);
+
+  let select: HTMLSelectElement | null = null;
+  for (let i = 0; i < 32; i++) {
+    select = queryGenerateImageAspectSelect(nodeId);
+    if (select) break;
+    await sleep(60);
+  }
+  if (!select) return false;
+
+  return humanLikeSelectAspectRatio(select, aspectRatio, deps);
+}
+
 function getNodeTextarea(nodeId: string): HTMLTextAreaElement | null {
   const nodeEl = document.querySelector(
     `.react-flow__node[data-id="${CSS.escape(nodeId)}"]`
@@ -170,6 +349,8 @@ export interface OrchestratorDeps {
   flowToScreenPosition: (pos: { x: number; y: number }) => { x: number; y: number };
   setCenter: (x: number, y: number, opts?: { duration?: number; zoom?: number }) => void;
   getViewportZoom: () => number;
+  /** Ensures exactly this node is selected so Control Panel / node toolbars reflect it */
+  ensureNodeSelected?: (nodeId: string) => void;
 }
 
 export async function executeOperationWithMouse(
@@ -284,9 +465,17 @@ async function executeAddNode(
   if (promptText && nodeId) {
     await typePromptIntoNode(nodeId, promptText, op.nodeType, deps);
   } else if (op.data && nodeId) {
-    // Apply other data fields via store (model, aspect ratio, etc.)
+    let payload = { ...(op.data as Record<string, unknown>) };
+    if (op.nodeType === "generateImage" && typeof payload.aspectRatio === "string") {
+      const applied = await applyGenerateImageAspectRatioThroughChrome(
+        nodeId,
+        payload.aspectRatio,
+        deps
+      );
+      if (applied) delete payload.aspectRatio;
+    }
     deps.storeUpdateNodeData(nodeId, {
-      ...(op.data as Record<string, unknown>),
+      ...payload,
       _agentTouched: Date.now(),
     });
   }
@@ -314,19 +503,28 @@ async function executeUpdateNode(
 
   setCursor({ actionLabel: "editing" });
 
-  // Move cursor to the node
-  const nodeCenter = getNodeScreenCenter(op.nodeId);
-  if (nodeCenter) {
-    await animateCursorTo(nodeCenter.x, nodeCenter.y, 300, setCursor, sleep, getCursorPos());
-    emitClickRipple(nodeCenter.x, nodeCenter.y, setCursor);
-    await sleep(150);
-  }
-
   // Check if there's a prompt to type
   const promptText =
     (op.data as any)?.prompt ??
     (op.data as any)?.inputPrompt ??
     null;
+
+  const willApplyImageAspectChrome =
+    getReactFlowNodeType(op.nodeId) === "generateImage" &&
+    typeof (op.data as Record<string, unknown> | undefined)?.aspectRatio === "string";
+
+  // Control panel + aspect UI: `applyGenerateImageAspectRatioThroughChrome` selects the node
+  // and waits for the panel — skip the generic hover so we don't double-move the cursor.
+  const skipGenericNodeHover = willApplyImageAspectChrome && !promptText;
+
+  if (!skipGenericNodeHover) {
+    const nodeCenter = getNodeScreenCenter(op.nodeId);
+    if (nodeCenter) {
+      await animateCursorTo(nodeCenter.x, nodeCenter.y, 300, setCursor, sleep, getCursorPos());
+      emitClickRipple(nodeCenter.x, nodeCenter.y, setCursor);
+      await sleep(150);
+    }
+  }
 
   if (promptText) {
     // Find the node type to determine the textarea approach
@@ -340,15 +538,44 @@ async function executeUpdateNode(
     const restData = { ...(op.data as Record<string, unknown>) };
     delete restData.prompt;
     delete restData.inputPrompt;
-    if (Object.keys(restData).length > 0) {
-      deps.storeUpdateNodeData(op.nodeId, { ...restData, _agentTouched: Date.now() });
+    let rest = restData;
+    if (
+      typeof rest.aspectRatio === "string" &&
+      getReactFlowNodeType(op.nodeId) === "generateImage"
+    ) {
+      const applied = await applyGenerateImageAspectRatioThroughChrome(
+        op.nodeId,
+        rest.aspectRatio,
+        deps
+      );
+      if (applied) {
+        const next = { ...rest };
+        delete next.aspectRatio;
+        rest = next;
+      }
+    }
+    if (Object.keys(rest).length > 0) {
+      deps.storeUpdateNodeData(op.nodeId, { ...rest, _agentTouched: Date.now() });
     }
   } else {
-    // No prompt text, apply all data via store
-    deps.storeUpdateNodeData(op.nodeId, {
-      ...(op.data as Record<string, unknown>),
-      _agentTouched: Date.now(),
-    });
+    let payload = { ...(op.data as Record<string, unknown>) };
+    if (
+      typeof payload.aspectRatio === "string" &&
+      getReactFlowNodeType(op.nodeId) === "generateImage"
+    ) {
+      const applied = await applyGenerateImageAspectRatioThroughChrome(
+        op.nodeId,
+        payload.aspectRatio,
+        deps
+      );
+      if (applied) delete payload.aspectRatio;
+    }
+    if (Object.keys(payload).length > 0) {
+      deps.storeUpdateNodeData(op.nodeId, {
+        ...payload,
+        _agentTouched: Date.now(),
+      });
+    }
     await sleep(100);
   }
 

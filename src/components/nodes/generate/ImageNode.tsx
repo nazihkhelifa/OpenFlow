@@ -620,6 +620,8 @@ export function ImageNode({ id, data, selected }: NodeProps<ImageNodeType>) {
               <div className="flex items-center gap-2">
                 <label className="text-[11px] text-neutral-400 shrink-0">Aspect Ratio</label>
                 <select
+                  data-id="generate-image-inline-aspect-ratio"
+                  data-openflow-node-id={id}
                   value={nodeData.aspectRatio || "1:1"}
                   onChange={handleAspectRatioChange}
                   className="nodrag nopan flex-1 min-w-0 text-[11px] py-1 px-2 bg-[#1a1a1a] rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-600 text-white"

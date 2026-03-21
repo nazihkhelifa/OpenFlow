@@ -139,6 +139,7 @@ export function ControlPanel() {
   return (
     <div className="fixed top-6 right-6 z-[90] flex items-start pointer-events-none">
       <div
+        data-id="openflow-control-panel"
         className="w-52 bg-neutral-800 border border-neutral-700 rounded-xl max-h-[70vh] overflow-y-auto pointer-events-auto transition-opacity duration-200 nowheel"
         style={{
           boxShadow: [
@@ -462,6 +463,7 @@ function GenerateImageControls({ node }: { node: Node }) {
             <div>
               <label className="block text-[10px] font-medium text-neutral-300 mb-0.5">Aspect Ratio</label>
               <select
+                data-id="control-panel-aspect-ratio"
                 value={nodeData.aspectRatio || "1:1"}
                 onChange={handleAspectRatioChange}
                 className="nodrag nopan w-full px-1.5 py-0.5 text-[10px] bg-neutral-700 border border-neutral-600 rounded text-neutral-200 focus:outline-none focus:ring-1 focus:ring-blue-500"

@@ -978,7 +978,7 @@ export function FlowyAgentPanel({
           `NodeDefaults.generate3d default: ${JSON.stringify(nodeDefaults.generate3d ?? {}, null, 0)}`,
           `NodeDefaults.generateAudio default: ${JSON.stringify(nodeDefaults.generateAudio ?? {}, null, 0)}`,
           `NodeDefaults.llm presets: ${JSON.stringify(nodeDefaults.llmPresets ?? (nodeDefaults.llm ? [nodeDefaults.llm] : []), null, 0)}`,
-          "Editable node fields policy: You may update selectedModel/model/aspectRatio/resolution/useGoogleSearch/useImageSearch/temperature/maxTokens/provider and other node-specific generation params when user intent asks for model or quality tuning.",
+          "Editable node fields policy: You may update selectedModel/model/aspectRatio/resolution/useGoogleSearch/useImageSearch/temperature/maxTokens/provider and other node-specific generation params when user intent asks for model or quality tuning. For generateImage, prefer a single updateNode with aspectRatio: the right-hand Control Panel only exists while that image node is the only selected node on the canvas — assist mode selects and clicks the node, waits for the panel, then changes aspect via Control Panel (inline params off), node top toolbar, or expanded inline settings. Prompt (LLM) nodes do not use that image aspect control; use updateNode for temperature/model/provider on prompt nodes as usual.",
           selectedNodeControls
             ? `Selected node settings snapshot:\n${selectedNodeControls}`
             : "Selected node settings snapshot: (none)",
@@ -1600,6 +1600,16 @@ export function FlowyAgentPanel({
       flowToScreenPosition,
       setCenter: (x, y, opts) => setCenter(x, y, opts),
       getViewportZoom: () => getViewport().zoom,
+      ensureNodeSelected: (nodeId) => {
+        const { nodes, onNodesChange } = useWorkflowStore.getState();
+        onNodesChange(
+          nodes.map((n) => ({
+            type: "select" as const,
+            id: n.id,
+            selected: n.id === nodeId,
+          }))
+        );
+      },
     }),
     [flowToScreenPosition, getViewport, onApplyEdits, screenToFlowPosition, setCenter, sleep, storeUpdateNodeData]
   );
