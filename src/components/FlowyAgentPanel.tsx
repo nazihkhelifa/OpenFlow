@@ -94,6 +94,15 @@ type DecompositionInfo = {
   isLastStage: boolean;
 };
 
+type PlannerStageEvent = {
+  progress?: string;
+  detail?: string;
+  stageId?: string;
+  stageTitle?: string;
+  status?: "running" | "done" | "failed";
+  source?: string;
+};
+
 type QualityCheck = {
   verdict: "accept" | "refine" | "regenerate" | "error_recovery";
   confidence: number;
@@ -631,6 +640,7 @@ export function FlowyAgentPanel({
   const [isExecutingStep, setIsExecutingStep] = useState(false);
   const [cursorActionLabel, setCursorActionLabel] = useState<string>("agent");
   const [plannerProgress, setPlannerProgress] = useState<string | null>(null);
+  const [plannerStageEvent, setPlannerStageEvent] = useState<PlannerStageEvent | null>(null);
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
   const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
@@ -864,6 +874,7 @@ export function FlowyAgentPanel({
       setErrorMessage(null);
       setIsPlanning(true);
       setPlannerProgress(null);
+      setPlannerStageEvent(null);
       activePlanAbortRef.current?.abort();
       const abortController = new AbortController();
       activePlanAbortRef.current = abortController;
@@ -1025,8 +1036,9 @@ export function FlowyAgentPanel({
             buffer = parsed.rest;
             for (const evt of parsed.events) {
               if (evt.event === "progress" && evt.data) {
-                const p = evt.data as { progress?: string; detail?: string };
+                const p = evt.data as PlannerStageEvent;
                 setPlannerProgress(p.detail || p.progress || "Planning...");
+                setPlannerStageEvent(p);
               } else if (evt.event === "result" && evt.data) {
                 data = evt.data as any;
               } else if (evt.event === "error" && evt.data) {
@@ -1056,6 +1068,7 @@ export function FlowyAgentPanel({
           if (data.progressEvents?.length) {
             const last = data.progressEvents[data.progressEvents.length - 1];
             setPlannerProgress(last.detail || last.progress);
+            setPlannerStageEvent(last as PlannerStageEvent);
           }
         }
 
@@ -1121,6 +1134,7 @@ export function FlowyAgentPanel({
         }
         setIsPlanning(false);
         setPlannerProgress(null);
+        setPlannerStageEvent(null);
       }
     },
     [contextNodeIds, customInstructions, imageAttachments, isPlanning, scrollToBottom, stateForRequest, updateSessionMessages, autoContinueMaxSteps, applyServerWorkflowState, canvasStateMemory]
@@ -1830,40 +1844,47 @@ export function FlowyAgentPanel({
           )
         )}
 
-        {activeDecomposition && activeDecomposition.totalStages > 1 && (
+        {(activeDecomposition && activeDecomposition.totalStages > 1) || plannerStageEvent ? (
           <div className="mx-4 my-2 rounded-xl border border-purple-800/40 bg-purple-950/20 px-3 py-2">
             <div className="flex items-center gap-2 text-[11px] text-purple-200">
               <Sparkles className="size-3 shrink-0" aria-hidden />
               <span className="font-medium">
-                Stage {activeDecomposition.currentStageIndex + 1}/{activeDecomposition.totalStages}
+                {activeDecomposition && activeDecomposition.totalStages > 1
+                  ? `Stage ${activeDecomposition.currentStageIndex + 1}/${activeDecomposition.totalStages}`
+                  : (plannerStageEvent?.stageTitle || "Planning")}
               </span>
               <span className="text-purple-300/70">
-                {activeDecomposition.stages[activeDecomposition.currentStageIndex]?.title ?? ""}
+                {plannerStageEvent?.detail ||
+                  (activeDecomposition
+                    ? activeDecomposition.stages[activeDecomposition.currentStageIndex]?.title ?? ""
+                    : "")}
               </span>
             </div>
-            <div className="mt-1.5 flex gap-1">
-              {activeDecomposition.stages.map((s, i) => (
-                <div
-                  key={s.id}
-                  className={`h-1 flex-1 rounded-full transition-colors ${
-                    i < activeDecomposition.currentStageIndex
-                      ? "bg-purple-400"
-                      : i === activeDecomposition.currentStageIndex
-                        ? "bg-purple-400 animate-pulse"
-                        : "bg-white/10"
-                  }`}
-                />
-              ))}
-            </div>
+            {activeDecomposition && activeDecomposition.totalStages > 1 && (
+              <div className="mt-1.5 flex gap-1">
+                {activeDecomposition.stages.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      i < activeDecomposition.currentStageIndex
+                        ? "bg-purple-400"
+                        : i === activeDecomposition.currentStageIndex
+                          ? "bg-purple-400 animate-pulse"
+                          : "bg-white/10"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
 
         {isPlanning && (
           <div className="group/message flex w-full select-text flex-col gap-1 py-1">
             <div className="px-6">
               <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-neutral-300">
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                <span>{plannerProgress || "Flowy is thinking..."}</span>
+                <span>{plannerStageEvent?.detail || plannerProgress || "Flowy is thinking..."}</span>
               </div>
             </div>
           </div>

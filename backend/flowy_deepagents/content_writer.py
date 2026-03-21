@@ -22,10 +22,38 @@ from canvas_context import (
 FLOWY_DEEPAGENTS_DIR = os.path.join(os.path.dirname(__file__), "")
 
 
+_STAGE_META: Dict[str, Dict[str, str]] = {
+    "init": {"stageId": "analyze_request", "stageTitle": "Analyze request", "source": "planner"},
+    "advisor": {"stageId": "build_plan", "stageTitle": "Plan advisor", "source": "planner"},
+    "routing": {"stageId": "analyze_request", "stageTitle": "Classify intent", "source": "planner"},
+    "decomposing": {"stageId": "build_plan", "stageTitle": "Decompose goal", "source": "planner"},
+    "decomposed": {"stageId": "build_plan", "stageTitle": "Goal stages ready", "source": "planner"},
+    "subagent_planner": {"stageId": "build_plan", "stageTitle": "Planner stage", "source": "planner"},
+    "subagent_prompt_specialist": {
+        "stageId": "build_plan",
+        "stageTitle": "Prompt specialist stage",
+        "source": "prompt_specialist",
+    },
+    "subagent_builder": {"stageId": "apply_canvas_ops", "stageTitle": "Builder stage", "source": "builder"},
+    "planning": {"stageId": "apply_canvas_ops", "stageTitle": "Generate operations", "source": "builder"},
+    "retrying": {"stageId": "apply_canvas_ops", "stageTitle": "Retry operations", "source": "builder"},
+    "quality_check": {"stageId": "quality_check", "stageTitle": "Quality check", "source": "planner"},
+}
+
+
 def _emit_progress(stage: str, detail: str = "") -> None:
     """Write a progress event to stderr (picked up by the Node.js API route for SSE)."""
-    event = json.dumps({"progress": stage, "detail": detail}, ensure_ascii=False)
-    sys.stderr.write(f"FLOWY_PROGRESS:{event}\n")
+    meta = _STAGE_META.get(stage, {})
+    event = {
+        "progress": stage,
+        "detail": detail,
+        "stageId": meta.get("stageId", stage),
+        "stageTitle": meta.get("stageTitle", stage.replace("_", " ")),
+        "status": "running",
+        "source": meta.get("source", "planner"),
+    }
+    event_json = json.dumps(event, ensure_ascii=False)
+    sys.stderr.write(f"FLOWY_PROGRESS:{event_json}\n")
     sys.stderr.flush()
 
 
