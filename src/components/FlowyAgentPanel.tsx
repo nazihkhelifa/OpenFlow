@@ -413,7 +413,6 @@ export function FlowyAgentPanel({
   const [pendingRunApprovalRequired, setPendingRunApprovalRequired] = useState<boolean>(true);
   const [executionIndex, setExecutionIndex] = useState<number>(0);
   const [applyMode, setApplyMode] = useState<"manual" | "auto">("manual");
-  const [autoContinue, setAutoContinue] = useState<boolean>(false);
   const [mentionedNodeIds, setMentionedNodeIds] = useState<string[]>([]);
   const [isNodePickerOpen, setIsNodePickerOpen] = useState(false);
   const [nodePickerQuery, setNodePickerQuery] = useState("");
@@ -435,7 +434,6 @@ export function FlowyAgentPanel({
   const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
   const activePlanAbortRef = useRef<AbortController | null>(null);
   const lastGoalRef = useRef<string | null>(null);
-  const autoContinueCountRef = useRef<number>(0);
   const [activeDecomposition, setActiveDecomposition] = useState<DecompositionInfo | null>(null);
   const activeDecompositionRef = useRef<DecompositionInfo | null>(null);
   activeDecompositionRef.current = activeDecomposition;
@@ -626,9 +624,6 @@ export function FlowyAgentPanel({
       const sessionId = activeSessionIdRef.current;
       const agentModeAtStart = flowyAgentModeRef.current;
 
-      if (!opts?.suppressUserEcho) {
-        autoContinueCountRef.current = 0;
-      }
 
       const priorMessages = sessionsRef.current.find((s) => s.id === sessionId)?.messages ?? [];
       const chatHistoryPayload = capFlowyChatHistory(
@@ -679,9 +674,6 @@ export function FlowyAgentPanel({
         if (opts?.runQualityCheck) body.runQualityCheck = true;
 
         const useStreaming = process.env.NEXT_PUBLIC_FLOWY_STREAM_PLAN === "1";
-        const useBackendAutoLoop =
-          process.env.NEXT_PUBLIC_FLOWY_BACKEND_AUTO_LOOP === "1" &&
-          agentModeAtStart === "auto";
         const parseSseLines = (buffer: string) => {
           const events: Array<{ event: string; data: any }> = [];
           let idx: number;
@@ -709,7 +701,7 @@ export function FlowyAgentPanel({
           debugLastText?: string;
         }) | null = null;
 
-        if (useBackendAutoLoop) {
+        if (agentModeAtStart === "auto") {
           const res = await fetch("/api/flowy/orchestrate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -870,7 +862,6 @@ export function FlowyAgentPanel({
     const trimmed = input.trim();
     if (!trimmed) return;
     lastGoalRef.current = trimmed;
-    autoContinueCountRef.current = 0;
     setInput("");
     await requestPlan(trimmed);
     setImageAttachments([]);
@@ -929,17 +920,12 @@ export function FlowyAgentPanel({
   useEffect(() => {
     if (flowyAgentMode === "auto") {
       setApplyMode("auto");
-      setAutoContinue(true);
     } else if (flowyAgentMode === "assist") {
       // Assist now auto-applies canvas edits; only run execution needs approval.
       setApplyMode("auto");
-      setAutoContinue(false);
     } else {
       stopAutoRun();
       setApplyMode("manual");
-      if (flowyAgentMode === "plan") {
-        setAutoContinue(false);
-      }
     }
   }, [flowyAgentMode, stopAutoRun]);
 
@@ -1145,59 +1131,6 @@ export function FlowyAgentPanel({
     setPlannerTimelineOpen(true);
   }, [pendingOperations]);
 
-  useEffect(() => {
-    if (!pendingOperations) return;
-    if (executionIndex < pendingOperations.length) return;
-    if (!pendingExecuteNodeIds || pendingExecuteNodeIds.length === 0) return;
-    if (!onRunNodeIds) return;
-    // Only Auto mode can execute workflows by itself.
-    if (flowyAgentMode !== "auto") return;
-    if (autoRunCompletedRef.current) return;
-    autoRunCompletedRef.current = true;
-    (async () => {
-      setIsRunning(true);
-      try {
-        await onRunNodeIds(pendingExecuteNodeIds);
-      } finally {
-        setIsRunning(false);
-      }
-
-      if (!autoContinue) return;
-      const goal = lastGoalRef.current;
-      if (!goal) return;
-      if (autoContinueCountRef.current >= autoContinueMaxSteps) return;
-      autoContinueCountRef.current += 1;
-
-      await new Promise((r) => setTimeout(r, 800));
-
-      const decomp = activeDecompositionRef.current;
-      if (decomp && !decomp.isLastStage) {
-        const nextIdx = decomp.currentStageIndex + 1;
-        await requestPlan(goal, {
-          suppressUserEcho: true,
-          stageIndex: nextIdx,
-          decompositionStages: decomp.stages,
-        });
-      } else {
-        await requestPlan(
-          `Continue the workflow toward the original user goal: "${goal}". ` +
-            `Inspect the current workflow execution results (node status/error/output fields) and plan the next minimal stage. ` +
-            `If the goal is already complete, return empty operations and explain completion.`,
-          { suppressUserEcho: true, runQualityCheck: true }
-        );
-      }
-    })();
-  }, [
-    autoContinue,
-    autoContinueMaxSteps,
-    executionIndex,
-    flowyAgentMode,
-    onRunNodeIds,
-    pendingExecuteNodeIds,
-    pendingOperations,
-    requestPlan,
-  ]);
-
   // Auto-apply mode: run through all pending operations sequentially.
   useEffect(() => {
     if (!isOpen) return;
@@ -1262,12 +1195,10 @@ export function FlowyAgentPanel({
     setErrorMessage(null);
     setExecutionIndex(0);
     autoRunCompletedRef.current = true;
-    autoContinueCountRef.current = 0;
     setActiveDecomposition(null);
   }, [createSession]);
 
   const modeSliderIndex = flowyAgentMode === "assist" ? 0 : flowyAgentMode === "auto" ? 1 : 2;
-  const backendAutoLoopEnabled = process.env.NEXT_PUBLIC_FLOWY_BACKEND_AUTO_LOOP === "1";
   const chatInputPlaceholder =
     flowyAgentMode === "plan"
       ? "Brainstorm workflows, prompts, and tradeoffs. Use @ to mention nodes."
@@ -1542,16 +1473,6 @@ export function FlowyAgentPanel({
                         <span className="rounded-lg px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-300">
                           Auto
                         </span>
-                        <label className="ml-1 flex cursor-pointer items-center gap-1.5 text-[11px] text-neutral-500 select-none">
-                          <input
-                            type="checkbox"
-                            className="accent-emerald-500"
-                            checked={autoContinue}
-                            onChange={(e) => setAutoContinue(e.target.checked)}
-                            disabled={flowyAgentMode !== "auto" || isPlanning || isExecutingStep || isRunning}
-                          />
-                          Continue
-                        </label>
                       </div>
                       {pendingOperations.map((op, idx) => {
                         const status =
@@ -1922,18 +1843,10 @@ export function FlowyAgentPanel({
                 </div>
                 {flowyAgentMode === "auto" && (
                   <span
-                    className={`ml-1 inline-flex shrink-0 items-center rounded-lg border px-2 py-0.5 text-[10px] leading-none ${
-                      backendAutoLoopEnabled
-                        ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                        : "border-white/10 bg-white/[0.04] text-neutral-400"
-                    }`}
-                    title={
-                      backendAutoLoopEnabled
-                        ? "Auto mode orchestration runs on backend loop"
-                        : "Auto mode orchestration runs in frontend panel loop"
-                    }
+                    className="ml-1 inline-flex shrink-0 items-center rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] leading-none text-emerald-300"
+                    title="Auto mode orchestration runs on backend loop"
                   >
-                    {backendAutoLoopEnabled ? "Backend Loop Active" : "Frontend Loop"}
+                    Backend Loop
                   </span>
                 )}
                 <div className="min-w-0 flex-1" />
