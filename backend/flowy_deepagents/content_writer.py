@@ -637,6 +637,28 @@ def _normalize_operation_models(
     return out
 
 
+def _effective_aspect_ratio_on_canvas(existing: Dict[str, Any], existing_data: Dict[str, Any]) -> Optional[str]:
+    """
+    Align no-op detection with ImageNode.tsx / ControlPanel:
+    - Gemini: top-level data.aspectRatio
+    - External (replicate/fal/kie): prefer parameters.aspect_ratio (etc.), then top-level
+    """
+    sm = existing_data.get("selectedModel")
+    prov = str((sm or {}).get("provider") or "").strip() if isinstance(sm, dict) else ""
+    is_gemini = not prov or prov == "gemini"
+    if is_gemini:
+        ar = existing_data.get("aspectRatio")
+        return ar.strip() if isinstance(ar, str) and ar.strip() else None
+    params = existing_data.get("parameters")
+    if isinstance(params, dict):
+        for key in ("aspect_ratio", "aspectRatio", "output_aspect_ratio", "ratio"):
+            val = params.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    ar2 = existing_data.get("aspectRatio")
+    return ar2.strip() if isinstance(ar2, str) and ar2.strip() else None
+
+
 def _optimize_operations_pre_validation(
     operations: List[Dict[str, Any]],
     workflow_state: Dict[str, Any],
@@ -776,6 +798,28 @@ def _optimize_operations_pre_validation(
                 existing_data = existing.get("data") or {}
                 no_change = True
                 for k, v in data.items():
+                    if (
+                        k == "aspectRatio"
+                        and str(existing.get("type") or "") == "generateImage"
+                    ):
+                        eff = _effective_aspect_ratio_on_canvas(existing, existing_data)
+                        want = v.strip() if isinstance(v, str) else v
+                        if eff != want:
+                            no_change = False
+                            continue
+                        sm = existing_data.get("selectedModel")
+                        prov = (
+                            str((sm or {}).get("provider") or "").strip()
+                            if isinstance(sm, dict)
+                            else ""
+                        )
+                        top_ar = existing_data.get("aspectRatio")
+                        top_s = top_ar.strip() if isinstance(top_ar, str) else None
+                        # External UIs often read parameters.* only; top-level aspectRatio can lag.
+                        # If effective aspect already matches but top-level differs, keep the update.
+                        if prov and prov != "gemini" and top_s != want:
+                            no_change = False
+                        continue
                     if existing_data.get(k) != v:
                         no_change = False
                         break
@@ -1036,7 +1080,8 @@ def _validate_toolbar_intent_plan(
         )
         # Only enforce updateNode when there's an existing tunable node to edit.
         # On empty/new canvases, allowing addNode plans avoids false validation failures.
-        if has_selected_tunable or has_any_tunable:
+        # If the optimizer dropped all ops as no-ops (canvas already matches), len(operations)==0 — accept.
+        if (has_selected_tunable or has_any_tunable) and len(operations) > 0:
             errors.append("Model/settings request should include updateNode operations.")
 
     if asks_ease:

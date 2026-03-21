@@ -323,6 +323,43 @@ describe("applyEditOperations", () => {
       expect(updated!.data).toHaveProperty("status", "idle");
     });
 
+    it("mirrors aspectRatio into parameters for Replicate/fal generateImage nodes", () => {
+      const nodes = [
+        createTestNode("gi-1", "generateImage", {
+          inputImages: [],
+          inputPrompt: null,
+          outputImage: null,
+          aspectRatio: "1:1",
+          resolution: "1K",
+          model: "nano-banana",
+          selectedModel: {
+            provider: "replicate",
+            modelId: "black-forest-labs/flux-2-klein-9b",
+            displayName: "FLUX",
+          },
+          parameters: { aspect_ratio: "1:1", megapixels: "1" },
+          useGoogleSearch: false,
+          useImageSearch: false,
+          status: "idle",
+          error: null,
+          imageHistory: [],
+          selectedHistoryIndex: 0,
+        }),
+      ];
+
+      const result = applyEditOperations(
+        [{ type: "updateNode", nodeId: "gi-1", data: { aspectRatio: "3:4" } }],
+        { nodes, edges: [] }
+      );
+
+      const updated = result.nodes.find((n) => n.id === "gi-1");
+      expect(updated!.data).toHaveProperty("aspectRatio", "3:4");
+      expect((updated!.data as Record<string, unknown>).parameters).toMatchObject({
+        aspect_ratio: "3:4",
+        megapixels: "1",
+      });
+    });
+
     it("skips with message when nodeId not found", () => {
       const ops: EditOperation[] = [
         {

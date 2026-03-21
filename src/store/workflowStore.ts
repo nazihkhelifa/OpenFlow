@@ -28,7 +28,11 @@ import {
 import { useToast } from "@/components/Toast";
 import { logger } from "@/utils/logger";
 import { externalizeWorkflowImages, hydrateWorkflowImages } from "@/utils/imageStorage";
-import { EditOperation, applyEditOperations as executeEditOps } from "@/lib/chat/editOperations";
+import {
+  EditOperation,
+  applyEditOperations as executeEditOps,
+  composeGenerateImageDataPatch,
+} from "@/lib/chat/editOperations";
 import {
   loadSaveConfigs,
   saveSaveConfig,
@@ -529,10 +533,16 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
 
   updateNodeData: (nodeId: string, data: Partial<WorkflowNodeData>) => {
     const node = get().nodes.find((n) => n.id === nodeId);
+    const patch: Partial<WorkflowNodeData> =
+      node &&
+      node.type === "generateImage" &&
+      typeof (data as Record<string, unknown>).aspectRatio === "string"
+        ? (composeGenerateImageDataPatch(node, data as Record<string, unknown>) as Partial<WorkflowNodeData>)
+        : data;
     set((state) => ({
       nodes: state.nodes.map((node) =>
         node.id === nodeId
-          ? { ...node, data: { ...node.data, ...data } as WorkflowNodeData }
+          ? { ...node, data: { ...node.data, ...patch } as WorkflowNodeData }
           : node
       ) as WorkflowNode[],
       hasUnsavedChanges: true,

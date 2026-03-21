@@ -465,14 +465,10 @@ async function executeAddNode(
   if (promptText && nodeId) {
     await typePromptIntoNode(nodeId, promptText, op.nodeType, deps);
   } else if (op.data && nodeId) {
-    let payload = { ...(op.data as Record<string, unknown>) };
+    const payload = { ...(op.data as Record<string, unknown>) };
     if (op.nodeType === "generateImage" && typeof payload.aspectRatio === "string") {
-      const applied = await applyGenerateImageAspectRatioThroughChrome(
-        nodeId,
-        payload.aspectRatio,
-        deps
-      );
-      if (applied) delete payload.aspectRatio;
+      // DOM assist for Gemini-style selects; always persist to store too (controlled inputs can desync).
+      await applyGenerateImageAspectRatioThroughChrome(nodeId, payload.aspectRatio, deps);
     }
     deps.storeUpdateNodeData(nodeId, {
       ...payload,
@@ -543,32 +539,18 @@ async function executeUpdateNode(
       typeof rest.aspectRatio === "string" &&
       getReactFlowNodeType(op.nodeId) === "generateImage"
     ) {
-      const applied = await applyGenerateImageAspectRatioThroughChrome(
-        op.nodeId,
-        rest.aspectRatio,
-        deps
-      );
-      if (applied) {
-        const next = { ...rest };
-        delete next.aspectRatio;
-        rest = next;
-      }
+      await applyGenerateImageAspectRatioThroughChrome(op.nodeId, rest.aspectRatio, deps);
     }
     if (Object.keys(rest).length > 0) {
       deps.storeUpdateNodeData(op.nodeId, { ...rest, _agentTouched: Date.now() });
     }
   } else {
-    let payload = { ...(op.data as Record<string, unknown>) };
+    const payload = { ...(op.data as Record<string, unknown>) };
     if (
       typeof payload.aspectRatio === "string" &&
       getReactFlowNodeType(op.nodeId) === "generateImage"
     ) {
-      const applied = await applyGenerateImageAspectRatioThroughChrome(
-        op.nodeId,
-        payload.aspectRatio,
-        deps
-      );
-      if (applied) delete payload.aspectRatio;
+      await applyGenerateImageAspectRatioThroughChrome(op.nodeId, payload.aspectRatio, deps);
     }
     if (Object.keys(payload).length > 0) {
       deps.storeUpdateNodeData(op.nodeId, {

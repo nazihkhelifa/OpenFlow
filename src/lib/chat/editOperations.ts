@@ -4,6 +4,59 @@ import { createDefaultNodeData } from "@/store/utils/nodeDefaults";
 import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
 
 /**
+ * Generate Image: Gemini reads `data.aspectRatio`; Replicate/fal/kie show aspect via
+ * `ModelParameters` bound to `data.parameters` (e.g. aspect_ratio). Flowy/updateNode
+ * often only sets top-level `aspectRatio`, so we mirror into parameters for external providers.
+ */
+function mergeAspectIntoParametersForExternalProvider(
+  mergedNodeData: Record<string, unknown>,
+  aspectRatio: string
+): Record<string, unknown> {
+  const provider =
+    (mergedNodeData.selectedModel as { provider?: string } | undefined)?.provider || "gemini";
+  if (provider === "gemini") {
+    return { ...mergedNodeData, aspectRatio };
+  }
+
+  const params = {
+    ...((mergedNodeData.parameters as Record<string, unknown>) ?? {}),
+  };
+  const keys = Object.keys(params);
+  const aspectLike = keys.filter(
+    (k) =>
+      k === "aspect_ratio" ||
+      k === "aspectRatio" ||
+      k === "output_aspect_ratio" ||
+      k === "ratio" ||
+      /^aspect/i.test(k)
+  );
+  if (aspectLike.length > 0) {
+    for (const k of aspectLike) {
+      params[k] = aspectRatio;
+    }
+  } else {
+    params.aspect_ratio = aspectRatio;
+  }
+  return { ...mergedNodeData, aspectRatio, parameters: params };
+}
+
+/**
+ * Expand a generateImage `updateNode` payload so aspect changes apply everywhere in the UI.
+ */
+export function composeGenerateImageDataPatch(
+  existingNode: WorkflowNode,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
+  if (existingNode.type !== "generateImage") return incoming;
+  if (typeof incoming.aspectRatio !== "string") return incoming;
+  const mergedPreview = {
+    ...(existingNode.data as Record<string, unknown>),
+    ...incoming,
+  };
+  return mergeAspectIntoParametersForExternalProvider(mergedPreview, incoming.aspectRatio);
+}
+
+/**
  * Edit operation types for workflow modifications.
  * Each operation represents a single atomic change to the workflow.
  */
@@ -103,10 +156,17 @@ export function applyEditOperations(
         const dimensions = defaultNodeDimensions[operation.nodeType];
 
         // Merge provided data with defaults
-        const nodeData = {
+        let nodeData = {
           ...defaultData,
           ...operation.data,
-        } as WorkflowNodeData;
+        } as Record<string, unknown>;
+
+        if (operation.nodeType === "generateImage" && typeof nodeData.aspectRatio === "string") {
+          nodeData = mergeAspectIntoParametersForExternalProvider(
+            nodeData,
+            nodeData.aspectRatio as string
+          );
+        }
 
         const newNode: WorkflowNode = {
           id: nodeId,
@@ -159,13 +219,19 @@ export function applyEditOperations(
           break;
         }
 
+        const existing = nodes[nodeIndex];
+        const patch =
+          existing.type === "generateImage"
+            ? composeGenerateImageDataPatch(existing, operation.data as Record<string, unknown>)
+            : operation.data;
+
         nodes = nodes.map((n) =>
           n.id === operation.nodeId
             ? {
                 ...n,
                 data: {
                   ...n.data,
-                  ...operation.data,
+                  ...patch,
                   _agentTouched: Date.now(),
                 } as WorkflowNodeData,
               }
