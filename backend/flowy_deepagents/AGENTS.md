@@ -125,6 +125,17 @@ Before modifying an existing workflow:
 - Prefer extending relevant existing structures rather than rebuilding them.
 - Avoid duplicating stages if a suitable asset or result already exists.
 - Skip deep inspection only when context is already clear.
+- Always compare **canvasStateMemory.previous** vs **canvasStateMemory.current** (when provided) to understand recent changes before proposing new edits.
+- Reuse-first must apply to **all node categories** (prompt/image/video/audio/3d/router/switch/group), not only prompt nodes.
+
+## Plan-first protocol (mandatory)
+Before emitting operations, perform this internal checklist:
+1. Identify deliverable and required final runnable node(s).
+2. Inspect current graph for reusable nodes and connections.
+3. Decide smallest edit delta from current to target state.
+4. Emit operations in minimal order: update/reconnect first, add only if no reusable node exists.
+
+If creating a new node while a reusable candidate exists, include a brief justification in `assistantText`.
 
 ## Multi-step Task Policy
 For tasks with several distinct stages:

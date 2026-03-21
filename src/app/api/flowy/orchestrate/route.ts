@@ -84,6 +84,59 @@ async function runFlowyPlanner(payload: PlanRequest): Promise<any> {
   });
 }
 
+export function optimizeOpsForApply(ops: EditOperation[], workflow: WorkflowState): EditOperation[] {
+  if (!Array.isArray(ops) || ops.length === 0) return ops;
+  const out: EditOperation[] = [];
+  const seenEdgeKeys = new Set<string>();
+  const latestUpdateByNode = new Map<string, Extract<EditOperation, { type: "updateNode" }>>();
+  const existingById = new Map<string, any>((workflow.nodes || []).map((n: any) => [String(n.id), n]));
+
+  const flushUpdates = () => {
+    for (const upd of latestUpdateByNode.values()) out.push(upd);
+    latestUpdateByNode.clear();
+  };
+
+  for (const op of ops) {
+    if (!op || typeof op !== "object") continue;
+    if (op.type === "updateNode") {
+      const prev = latestUpdateByNode.get(op.nodeId);
+      latestUpdateByNode.set(
+        op.nodeId,
+        prev
+          ? { ...prev, data: { ...(prev.data || {}), ...(op.data || {}) } }
+          : op
+      );
+      continue;
+    }
+
+    flushUpdates();
+
+    if (op.type === "addEdge") {
+      const key = `${op.source}|${op.target}|${op.sourceHandle ?? ""}|${op.targetHandle ?? ""}`;
+      if (seenEdgeKeys.has(key)) continue;
+      seenEdgeKeys.add(key);
+      out.push(op);
+      continue;
+    }
+
+    out.push(op);
+  }
+
+  flushUpdates();
+
+  // Remove no-op updates after merge.
+  return out.filter((op) => {
+    if (op.type !== "updateNode") return true;
+    const existing = existingById.get(op.nodeId);
+    const data = (op as any).data || {};
+    if (!existing || typeof existing !== "object" || typeof existing.data !== "object") return true;
+    for (const [k, v] of Object.entries(data)) {
+      if ((existing.data as any)[k] !== v) return true;
+    }
+    return false;
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as PlanRequest & {
@@ -159,7 +212,8 @@ export async function POST(request: Request) {
         message,
         workflowState: current,
       });
-      const ops = Array.isArray(plan?.operations) ? (plan.operations as EditOperation[]) : [];
+      const rawOps = Array.isArray(plan?.operations) ? (plan.operations as EditOperation[]) : [];
+      const ops = optimizeOpsForApply(rawOps, current);
       const step: any = {
         iteration: i + 1,
         assistantText: String(plan?.assistantText || ""),

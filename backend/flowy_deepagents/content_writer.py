@@ -464,6 +464,168 @@ def _normalize_operation_models(
     return out
 
 
+def _optimize_operations_pre_validation(
+    operations: List[Dict[str, Any]],
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+) -> List[Dict[str, Any]]:
+    """
+    Generalized optimizer pass before validation/apply.
+    Goals:
+    - Reuse existing graph where safe
+    - Remove obvious redundant operations
+    - Keep deterministic order and semantics
+    """
+    if not isinstance(operations, list) or not operations:
+        return operations
+
+    nodes = [n for n in (workflow_state.get("nodes") or []) if isinstance(n, dict)]
+    node_by_id: Dict[str, Dict[str, Any]] = {str(n.get("id")): n for n in nodes if n.get("id")}
+
+    selected_prompt_ids = [
+        str(n.get("id"))
+        for n in nodes
+        if n.get("type") == "prompt" and str(n.get("id")) in set(selected_node_ids or [])
+    ]
+    any_prompt_ids = [str(n.get("id")) for n in nodes if n.get("type") == "prompt" and n.get("id")]
+
+    planned_id_remap: Dict[str, str] = {}
+
+    # Phase A: prompt-node reuse transformation (safe / high-value case)
+    transformed: List[Dict[str, Any]] = []
+    for op in operations:
+        if not isinstance(op, dict):
+            transformed.append(op)
+            continue
+        if op.get("type") != "addNode" or op.get("nodeType") != "prompt":
+            transformed.append(op)
+            continue
+        data = op.get("data")
+        planned_id = op.get("nodeId")
+        if not isinstance(data, dict) or not isinstance(planned_id, str):
+            transformed.append(op)
+            continue
+        prompt_text = data.get("prompt")
+        if not isinstance(prompt_text, str) or not prompt_text.strip():
+            transformed.append(op)
+            continue
+
+        reusable_prompt_id = (
+            selected_prompt_ids[0] if selected_prompt_ids else (any_prompt_ids[0] if any_prompt_ids else None)
+        )
+        if not reusable_prompt_id:
+            transformed.append(op)
+            continue
+
+        planned_id_remap[planned_id] = reusable_prompt_id
+        transformed.append(
+            {
+                "type": "updateNode",
+                "nodeId": reusable_prompt_id,
+                "data": {"prompt": prompt_text},
+            }
+        )
+
+    # Remap references to reused IDs
+    def _map_id(raw_id: Any) -> Any:
+        if isinstance(raw_id, str) and raw_id in planned_id_remap:
+            return planned_id_remap[raw_id]
+        return raw_id
+
+    remapped: List[Dict[str, Any]] = []
+    for op in transformed:
+        if not isinstance(op, dict):
+            remapped.append(op)
+            continue
+        t = op.get("type")
+        if t == "addEdge":
+            remapped.append(
+                {
+                    **op,
+                    "source": _map_id(op.get("source")),
+                    "target": _map_id(op.get("target")),
+                }
+            )
+        elif t in {"updateNode", "removeNode", "moveNode", "setNodeGroup"}:
+            remapped.append({**op, "nodeId": _map_id(op.get("nodeId"))})
+        elif t == "createGroup" and isinstance(op.get("nodeIds"), list):
+            remapped.append({**op, "nodeIds": [_map_id(x) for x in op.get("nodeIds", [])]})
+        else:
+            remapped.append(op)
+
+    # Phase B: merge repeated updateNode operations for same node
+    merged_updates: List[Dict[str, Any]] = []
+    pending_update_by_node: Dict[str, Dict[str, Any]] = {}
+
+    def _flush_update(node_id: str) -> None:
+        upd = pending_update_by_node.pop(node_id, None)
+        if upd:
+            merged_updates.append(upd)
+
+    for op in remapped:
+        if not isinstance(op, dict):
+            continue
+        if op.get("type") == "updateNode" and isinstance(op.get("nodeId"), str) and isinstance(op.get("data"), dict):
+            node_id = op["nodeId"]
+            prev = pending_update_by_node.get(node_id)
+            if prev is None:
+                pending_update_by_node[node_id] = dict(op)
+            else:
+                merged = dict(prev)
+                merged_data = dict(prev.get("data") or {})
+                merged_data.update(op.get("data") or {})
+                merged["data"] = merged_data
+                pending_update_by_node[node_id] = merged
+            continue
+        # Preserve order boundary: flush updates before non-update op
+        for nid in list(pending_update_by_node.keys()):
+            _flush_update(nid)
+        merged_updates.append(op)
+
+    for nid in list(pending_update_by_node.keys()):
+        _flush_update(nid)
+
+    # Phase C: remove no-op updates and dedupe edges
+    out: List[Dict[str, Any]] = []
+    seen_edges: Set[Tuple[str, str, str, str]] = set()
+
+    for op in merged_updates:
+        if not isinstance(op, dict):
+            continue
+        t = op.get("type")
+        if t == "updateNode":
+            node_id = op.get("nodeId")
+            data = op.get("data")
+            if not isinstance(node_id, str) or not isinstance(data, dict):
+                continue
+            existing = node_by_id.get(node_id)
+            if isinstance(existing, dict) and isinstance(existing.get("data"), dict):
+                existing_data = existing.get("data") or {}
+                no_change = True
+                for k, v in data.items():
+                    if existing_data.get(k) != v:
+                        no_change = False
+                        break
+                if no_change:
+                    continue
+            out.append(op)
+            continue
+        if t == "addEdge":
+            source = str(op.get("source") or "")
+            target = str(op.get("target") or "")
+            sh = str(op.get("sourceHandle") or "")
+            th = str(op.get("targetHandle") or "")
+            key = (source, target, sh, th)
+            if key in seen_edges:
+                continue
+            seen_edges.add(key)
+            out.append(op)
+            continue
+        out.append(op)
+
+    return out
+
+
 def _safe_extract_first_json_object(text: str) -> Dict[str, Any]:
     if not text:
         return {}
@@ -1000,6 +1162,181 @@ def _run_plan_advisor_only(
     )
 
 
+def _run_planner_stage(
+    router_model: Any,
+    message: str,
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+    chat_history: List[Dict[str, str]],
+    payload: Dict[str, Any],
+) -> Tuple[Optional[GoalDecompositionModel], int, Optional[str], str]:
+    """Subagent stage: goal decomposition and stage framing."""
+    _emit_progress("subagent_planner", "framing stage plan")
+    skip_decompose = os.environ.get("FLOWY_SKIP_DECOMPOSITION", "").strip().lower() in {"1", "true", "yes"}
+    decomposition: Optional[GoalDecompositionModel] = None
+    current_stage_instruction: Optional[str] = None
+    stage_index = int(payload.get("stageIndex") or 0)
+    prior_stages_json = payload.get("decompositionStages")
+
+    if not skip_decompose and stage_index == 0 and not prior_stages_json:
+        _emit_progress("decomposing", "analyzing goal complexity")
+        decomposition = _decompose_goal(
+            router_model, message, workflow_state, selected_node_ids, chat_history
+        )
+        if decomposition and decomposition.shouldDecompose:
+            _emit_progress("decomposed", f"{len(decomposition.stages)} stages planned")
+
+    if prior_stages_json and isinstance(prior_stages_json, list):
+        try:
+            decomposition = GoalDecompositionModel(
+                shouldDecompose=True,
+                stages=[GoalStageModel(**s) for s in prior_stages_json],
+                overallStrategy="resumed",
+                estimatedComplexity="moderate",
+            )
+        except Exception:
+            decomposition = None
+
+    planner_message = message
+    if decomposition and decomposition.shouldDecompose and decomposition.stages:
+        if stage_index < len(decomposition.stages):
+            stage = decomposition.stages[stage_index]
+            current_stage_instruction = stage.instruction
+            planner_message = (
+                f"STAGE {stage_index + 1}/{len(decomposition.stages)}: {stage.title}\n"
+                f"Instruction: {stage.instruction}\n\n"
+                f"Original user goal: {message}\n"
+                f"Overall strategy: {decomposition.overallStrategy}"
+            )
+    return decomposition, stage_index, current_stage_instruction, planner_message
+
+
+def _run_prompt_specialist_stage(planner_message: str, canvas_state_memory: Dict[str, Any]) -> str:
+    """Subagent stage: prompt behavior shaping before builder stage."""
+    _emit_progress("subagent_prompt_specialist", "preparing planning prompt")
+    if not canvas_state_memory:
+        return planner_message
+    # Keep message stable while still signaling stateful continuity.
+    updated_at = canvas_state_memory.get("updatedAt")
+    if isinstance(updated_at, int):
+        return (
+            planner_message
+            + f"\n\nCanvas state memory timestamp: {updated_at}. Reuse existing graph where possible and apply minimal edits."
+        )
+    return planner_message
+
+
+def _run_builder_stage(
+    model: Any,
+    system_prompt: str,
+    planner_message: str,
+    workflow_state: Dict[str, Any],
+    selected_node_ids: List[str],
+    attachments: List[Dict[str, str]],
+    model_catalog: Dict[str, List[Dict[str, str]]],
+    canvas_state_memory: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    message_for_toolbar_validation: str,
+) -> Tuple[Dict[str, Any], bool, List[str], str]:
+    """
+    Subagent stage: generate operations, normalize, optimize, validate with retries.
+    Returns: (parsed, validated_ok, last_errors, last_text_debug)
+    """
+    parsed: Dict[str, Any] = {}
+    validated_ok = False
+    last_errors: List[str] = []
+    last_text_debug = ""
+
+    try:
+        structured_planner = model.with_structured_output(FlowyPlanJsonModel)
+    except Exception:
+        structured_planner = None  # type: ignore[assignment]
+
+    _emit_progress("subagent_builder", "generating operations")
+
+    for attempt in range(3):
+        if attempt > 0:
+            _emit_progress("retrying", f"attempt {attempt + 1}/3")
+        user_prompt = _build_user_prompt(
+            planner_message,
+            workflow_state,
+            selected_node_ids,
+            attachments=attachments,
+            model_catalog=model_catalog,
+            canvas_state_memory=canvas_state_memory,
+            closing_instruction=CLOSE_CANVAS_PLAN,
+        )
+        if attempt > 0 and last_errors:
+            user_prompt += (
+                "\n\nYour previous operations were invalid:\n"
+                + "\n".join(f"- {e}" for e in last_errors)
+                + "\n\nReturn ONLY corrected JSON."
+            )
+        final_human = _build_human_message_with_attachments(user_prompt, attachments)
+        planner_lc: List[Any] = [SystemMessage(content=system_prompt)]
+        planner_lc.extend(_history_to_langchain_messages(chat_history))
+        planner_lc.append(final_human)
+
+        candidate: Dict[str, Any] = {}
+        last_text = ""
+        if structured_planner is not None:
+            try:
+                plan_obj = structured_planner.invoke(planner_lc)
+                if isinstance(plan_obj, FlowyPlanJsonModel):
+                    candidate = plan_obj.model_dump(exclude_none=True)
+                    last_text = json.dumps(candidate, ensure_ascii=False)
+            except Exception:
+                candidate = {}
+
+        if not candidate:
+            resp = model.invoke(planner_lc, response_format={"type": "json_object"})
+            last_text = str(getattr(resp, "content", "") or "")
+            try:
+                parsed_try = json.loads(last_text)
+                if isinstance(parsed_try, dict):
+                    candidate = parsed_try
+                else:
+                    candidate = _safe_extract_first_json_object(last_text)
+            except Exception:
+                candidate = _safe_extract_first_json_object(last_text)
+
+        last_text_debug = last_text[:2000] if last_text else ""
+
+        if not candidate:
+            parsed = {}
+            last_errors = ["LLM did not return valid JSON."]
+            continue
+
+        operations = candidate.get("operations", [])
+        operations = _materialize_attachment_operations(operations, attachments)
+        operations = _normalize_operation_models(operations, model_catalog)
+        operations = _optimize_operations_pre_validation(
+            operations, workflow_state=workflow_state, selected_node_ids=selected_node_ids
+        )
+        candidate["operations"] = operations
+        validation = _validate_edit_operations(operations, workflow_state)
+        toolbar_validation = _validate_toolbar_intent_plan(
+            message_for_toolbar_validation,
+            candidate,
+            operations,
+            workflow_state=workflow_state,
+            selected_node_ids=selected_node_ids,
+        )
+        combined_errors = [
+            *(validation.get("errors") or []),
+            *(toolbar_validation.get("errors") or []),
+        ]
+        if validation.get("ok") and toolbar_validation.get("ok"):
+            parsed = candidate
+            validated_ok = True
+            break
+
+        parsed = candidate
+        last_errors = combined_errors or ["validation_failed"]
+
+    return parsed, validated_ok, last_errors, last_text_debug
+
+
 def main() -> None:
     try:
         payload = _read_stdin_json()
@@ -1144,133 +1481,30 @@ def main() -> None:
                 return
 
         system_prompt = _build_system_prompt()
-
-        # --- Goal Decomposition ---
-        skip_decompose = os.environ.get("FLOWY_SKIP_DECOMPOSITION", "").strip().lower() in {"1", "true", "yes"}
-        decomposition: Optional[GoalDecompositionModel] = None
-        current_stage_instruction: Optional[str] = None
-        stage_index = int(payload.get("stageIndex") or 0)
-        prior_stages_json = payload.get("decompositionStages")
-
-        if not skip_decompose and stage_index == 0 and not prior_stages_json:
-            _emit_progress("decomposing", "analyzing goal complexity")
-            decomposition = _decompose_goal(
-                router_model, message, workflow_state, selected_node_ids, chat_history
-            )
-            if decomposition and decomposition.shouldDecompose:
-                _emit_progress("decomposed", f"{len(decomposition.stages)} stages planned")
-
-        if prior_stages_json and isinstance(prior_stages_json, list):
-            try:
-                decomposition = GoalDecompositionModel(
-                    shouldDecompose=True,
-                    stages=[GoalStageModel(**s) for s in prior_stages_json],
-                    overallStrategy="resumed",
-                    estimatedComplexity="moderate",
-                )
-            except Exception:
-                decomposition = None
-
-        planner_message = message
-        if decomposition and decomposition.shouldDecompose and decomposition.stages:
-            if stage_index < len(decomposition.stages):
-                stage = decomposition.stages[stage_index]
-                current_stage_instruction = stage.instruction
-                planner_message = (
-                    f"STAGE {stage_index + 1}/{len(decomposition.stages)}: {stage.title}\n"
-                    f"Instruction: {stage.instruction}\n\n"
-                    f"Original user goal: {message}\n"
-                    f"Overall strategy: {decomposition.overallStrategy}"
-                )
-
-        parsed: Dict[str, Any] = {}
-        validated_ok = False
-        last_errors: List[str] = []
-        last_text_debug: str = ""
-
-        try:
-            structured_planner = model.with_structured_output(FlowyPlanJsonModel)
-        except Exception:
-            structured_planner = None  # type: ignore[assignment]
-
-        _emit_progress("planning", "generating operations")
-
-        for attempt in range(3):
-            if attempt > 0:
-                _emit_progress("retrying", f"attempt {attempt + 1}/3")
-            user_prompt = _build_user_prompt(
-                planner_message,
-                workflow_state,
-                selected_node_ids,
-                attachments=attachments,
-                model_catalog=model_catalog,
-                canvas_state_memory=canvas_state_memory,
-                closing_instruction=CLOSE_CANVAS_PLAN,
-            )
-            if attempt > 0 and last_errors:
-                user_prompt += (
-                    "\n\nYour previous operations were invalid:\n"
-                    + "\n".join(f"- {e}" for e in last_errors)
-                    + "\n\nReturn ONLY corrected JSON."
-                )
-            final_human = _build_human_message_with_attachments(user_prompt, attachments)
-            planner_lc: List[Any] = [SystemMessage(content=system_prompt)]
-            planner_lc.extend(_history_to_langchain_messages(chat_history))
-            planner_lc.append(final_human)
-
-            candidate: Dict[str, Any] = {}
-            last_text = ""
-            if structured_planner is not None:
-                try:
-                    plan_obj = structured_planner.invoke(planner_lc)
-                    if isinstance(plan_obj, FlowyPlanJsonModel):
-                        candidate = plan_obj.model_dump(exclude_none=True)
-                        last_text = json.dumps(candidate, ensure_ascii=False)
-                except Exception:
-                    candidate = {}
-
-            if not candidate:
-                resp = model.invoke(planner_lc, response_format={"type": "json_object"})
-                last_text = str(getattr(resp, "content", "") or "")
-                try:
-                    parsed_try = json.loads(last_text)
-                    if isinstance(parsed_try, dict):
-                        candidate = parsed_try
-                    else:
-                        candidate = _safe_extract_first_json_object(last_text)
-                except Exception:
-                    candidate = _safe_extract_first_json_object(last_text)
-
-            last_text_debug = last_text[:2000] if last_text else ""
-
-            if not candidate:
-                parsed = {}
-                last_errors = ["LLM did not return valid JSON."]
-                continue
-
-            operations = candidate.get("operations", [])
-            operations = _materialize_attachment_operations(operations, attachments)
-            operations = _normalize_operation_models(operations, model_catalog)
-            candidate["operations"] = operations
-            validation = _validate_edit_operations(operations, workflow_state)
-            toolbar_validation = _validate_toolbar_intent_plan(
-                message,
-                candidate,
-                operations,
-                workflow_state=workflow_state,
-                selected_node_ids=selected_node_ids,
-            )
-            combined_errors = [
-                *(validation.get("errors") or []),
-                *(toolbar_validation.get("errors") or []),
-            ]
-            if validation.get("ok") and toolbar_validation.get("ok"):
-                parsed = candidate
-                validated_ok = True
-                break
-
-            parsed = candidate
-            last_errors = combined_errors or ["validation_failed"]
+        decomposition, stage_index, current_stage_instruction, planner_message = _run_planner_stage(
+            router_model=router_model,
+            message=message,
+            workflow_state=workflow_state,
+            selected_node_ids=selected_node_ids,
+            chat_history=chat_history,
+            payload=payload,
+        )
+        planner_message = _run_prompt_specialist_stage(
+            planner_message=planner_message,
+            canvas_state_memory=canvas_state_memory,
+        )
+        parsed, validated_ok, last_errors, last_text_debug = _run_builder_stage(
+            model=model,
+            system_prompt=system_prompt,
+            planner_message=planner_message,
+            workflow_state=workflow_state,
+            selected_node_ids=selected_node_ids,
+            attachments=attachments,
+            model_catalog=model_catalog,
+            canvas_state_memory=canvas_state_memory,
+            chat_history=chat_history,
+            message_for_toolbar_validation=message,
+        )
 
         ok = validated_ok
         if not parsed:

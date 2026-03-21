@@ -1,6 +1,49 @@
-# Placeholder for now.
-#
-# This file matches the DeepAgents example layout.
-# Our current MVP planner doesn't delegate to subagents yet.
-{}
+version: 1
+roles:
+  planner:
+    goal: "Decide stage strategy before any edit generation."
+    responsibilities:
+      - "Classify user intent and deliverable type."
+      - "Decompose complex requests into stages when beneficial."
+      - "Define minimal stage objective and acceptance criteria."
+    constraints:
+      - "Must prefer reuse of existing graph when feasible."
+      - "Must avoid operation-level details."
+    output_contract:
+      fields:
+        - stageInstruction
+        - stageIndex
+        - stageCount
+        - rationale
+
+  prompt_specialist:
+    goal: "Shape high-quality, model-aware node content and parameters."
+    responsibilities:
+      - "Expand/structure user creative intent without dropping details."
+      - "Apply model catalog normalization constraints."
+      - "Leverage canvas state memory for continuity."
+    constraints:
+      - "No graph mutation decisions."
+      - "No edge/node topology creation."
+    output_contract:
+      fields:
+        - enrichedMessage
+        - parameterHints
+        - modelHints
+
+  builder:
+    goal: "Generate minimal deterministic edit operations."
+    responsibilities:
+      - "Produce operation list that satisfies stage objective."
+      - "Prioritize update/rewire over add-node duplication."
+      - "Return executeNodeIds for runnable deliverables."
+    constraints:
+      - "JSON-only output with deterministic nodeIds for addNode."
+      - "No conversational-only fallback unless planner mode."
+    output_contract:
+      fields:
+        - assistantText
+        - operations
+        - executeNodeIds
+        - runApprovalRequired
 

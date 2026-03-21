@@ -2099,58 +2099,6 @@ export function FlowyAgentPanel({
                   <span>Flowy is thinking...</span>
                 </div>
               )}
-              {flowyAgentMode === "assist" &&
-                stateForRequest &&
-                stateForRequest.nodes.length > 0 &&
-                !isPlanning && (
-                  <div className="flex justify-end px-0.5">
-                    <button
-                      type="button"
-                      onClick={handleSuggestNextStep}
-                      disabled={isPlanning || isExecutingStep || isRunning}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[11px] text-neutral-200 transition-colors hover:bg-white/10 disabled:opacity-40"
-                    >
-                      <Sparkles className="size-3" strokeWidth={2} aria-hidden />
-                      Suggest next step
-                    </button>
-                  </div>
-                )}
-              {flowyAgentMode !== "plan" &&
-                workflowState &&
-                workflowState.nodes.length > 0 &&
-                !isPlanning && (
-                  <div className="flex flex-wrap items-center gap-1.5 px-0.5">
-                    <span className="w-full text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-                      Quick follow-up
-                    </span>
-                    {(
-                      [
-                        {
-                          label: "Vary",
-                          text: "Add a variation path or second output option from the current graph (branch, duplicate, or compare).",
-                        },
-                        {
-                          label: "Animate",
-                          text: "Extend the workflow toward video output from the current setup (add video generation and wire from image/text as needed).",
-                        },
-                        {
-                          label: "Fix errors",
-                          text: "Find nodes with error or failed run status in the execution digest and fix wiring, prompts, or settings.",
-                        },
-                      ] as const
-                    ).map((c) => (
-                      <button
-                        key={c.label}
-                        type="button"
-                        onClick={() => handleQuickFollowUp(c.text)}
-                        disabled={isExecutingStep || isRunning}
-                        className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-neutral-200 transition-colors hover:bg-white/10 disabled:opacity-40"
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
               {contextNodeChips.length > 0 && (
                 <div
                   role="list"
