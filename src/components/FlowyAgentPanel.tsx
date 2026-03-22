@@ -42,7 +42,6 @@ import {
   Minus,
   PanelRightClose,
   Settings2,
-  Sparkles,
   SquarePlus,
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -1707,6 +1706,15 @@ export function FlowyAgentPanel({
     autoRunIdRef.current += 1;
   }, []);
 
+  const stopFlowyAgent = useCallback(() => {
+    activePlanAbortRef.current?.abort();
+    stopAutoRun();
+    cancelFlowyNodeRun();
+    setIsExecutingStep(false);
+    setClickRipple(null);
+    setCursorActionLabel("Ready");
+  }, [cancelFlowyNodeRun, stopAutoRun]);
+
   useEffect(() => {
     if (flowyAgentMode === "assist") {
       // Assist now auto-applies canvas edits; only run execution needs approval.
@@ -2442,6 +2450,7 @@ export function FlowyAgentPanel({
               plannerLlm={plannerLlm}
               onPlannerLlmChange={setPlannerLlm}
               onOpenNodePicker={() => setIsNodePickerOpen(true)}
+              onStopAgent={stopFlowyAgent}
             />,
             composerMountEl
           )
@@ -2734,14 +2743,6 @@ export function FlowyAgentPanel({
             aria-live="polite"
             aria-busy={isPlanning}
           >
-            <div className="mb-2 flex items-center gap-2 text-[11px] text-neutral-200">
-              <Sparkles className="size-3 shrink-0 text-violet-300/90" aria-hidden />
-              <span className="font-medium tracking-tight">
-                {activeDecomposition && activeDecomposition.totalStages > 0
-                  ? `Stages (${activeDecomposition.currentStageIndex + 1}/${activeDecomposition.totalStages})`
-                  : plannerStageEvent?.stageTitle?.trim() || "Planning"}
-              </span>
-            </div>
             {activeDecomposition && activeDecomposition.totalStages > 0 ? (
               <div className="space-y-1.5">
                 {activeDecomposition.stages.map((s, i) => {

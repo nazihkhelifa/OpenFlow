@@ -47,6 +47,8 @@ export type FlowyCanvasChatComposerProps = {
   plannerLlm: FlowyPlannerLlmChoice;
   onPlannerLlmChange: (choice: FlowyPlannerLlmChoice) => void;
   onOpenNodePicker: () => void;
+  /** Abort planning stream, stop assist auto-apply, and cancel in-flight node runs. */
+  onStopAgent: () => void;
 };
 
 const FLOWY_COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 200;
@@ -73,11 +75,13 @@ export function FlowyCanvasChatComposer({
   plannerLlm,
   onPlannerLlmChange,
   onOpenNodePicker,
+  onStopAgent,
 }: FlowyCanvasChatComposerProps) {
   const generatedTextareaId = useId();
   const inputId = textareaId ?? generatedTextareaId;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modeSliderIndex = useMemo(() => (flowyAgentMode === "assist" ? 0 : 1), [flowyAgentMode]);
+  const agentBusy = isPlanning || isExecutingStep || isRunning;
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -208,6 +212,7 @@ export function FlowyCanvasChatComposer({
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
+                  if (agentBusy) return;
                   e.preventDefault();
                   onSubmit();
                 }
@@ -302,26 +307,43 @@ export function FlowyCanvasChatComposer({
                 <AtSign className="size-4" strokeWidth={1.5} aria-hidden />
               </button>
               <div className="relative ml-0.5 h-10 w-10 shrink-0">
-                <div className="absolute inset-0 rounded-[1.25rem] bg-white/10 backdrop-blur-md">
+                {agentBusy ? (
                   <button
-                    type="submit"
-                    disabled={isPlanning || !input.trim()}
-                    className="flex size-full items-center justify-center rounded-[1.15rem] p-1 text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
-                    aria-label="Send message"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onStopAgent();
+                    }}
+                    className="absolute inset-0 flex items-center justify-center rounded-[1.25rem] border border-black/10 bg-white p-1 shadow-sm outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-white/40"
+                    aria-label="Stop agent"
+                    title="Stop agent"
                   >
-                    <svg className="size-[22px]" fill="currentColor" viewBox="0 0 36 36" aria-hidden>
-                      <path
-                        clipRule="evenodd"
-                        fillRule="evenodd"
-                        d="M18 0C8.05887 0 0 8.05887 0 18C0 27.9411 8.05887 36 18 36C27.9411 36 36 27.9411 36 18C36 8.05887 27.9411 0 18 0ZM25.7025 16.8428C26.3415 17.4819 26.3415 18.518 25.7025 19.157C25.0634 19.796 24.0273 19.796 23.3883 19.157L19.6364 15.4051V24.5454C19.6364 25.4491 18.9038 26.1817 18 26.1817C17.0963 26.1817 16.3637 25.4491 16.3637 24.5454V15.4049L12.6116 19.157C11.9725 19.796 10.9364 19.796 10.2974 19.157C9.65834 18.518 9.65834 17.4819 10.2974 16.8428L16.8428 10.2974C17.0113 10.1289 17.2075 10.0048 17.4166 9.92517C17.6029 9.85424 17.7995 9.81855 17.9962 9.81811L17.9986 9.81811L18 9.8181C18.0151 9.8181 18.0301 9.81831 18.0451 9.81871C18.2321 9.82385 18.4184 9.86086 18.5951 9.92972C18.6217 9.94017 18.6508 9.95233 18.6767 9.96411C18.8098 10.0247 18.9335 10.1026 19.0447 10.1949C19.0833 10.227 19.1208 10.2612 19.157 10.2974L19.1681 10.3084L25.7025 16.8428Z"
-                      />
-                    </svg>
+                    <span className="size-3.5 shrink-0 rounded-full bg-neutral-950" aria-hidden />
                   </button>
-                </div>
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 rounded-[1.25rem] border border-white/10"
-                />
+                ) : (
+                  <>
+                    <div className="absolute inset-0 rounded-[1.25rem] bg-white/10 backdrop-blur-md">
+                      <button
+                        type="submit"
+                        disabled={isPlanning || !input.trim()}
+                        className="flex size-full items-center justify-center rounded-[1.15rem] p-1 text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+                        aria-label="Send message"
+                      >
+                        <svg className="size-[22px]" fill="currentColor" viewBox="0 0 36 36" aria-hidden>
+                          <path
+                            clipRule="evenodd"
+                            fillRule="evenodd"
+                            d="M18 0C8.05887 0 0 8.05887 0 18C0 27.9411 8.05887 36 18 36C27.9411 36 36 27.9411 36 18C36 8.05887 27.9411 0 18 0ZM25.7025 16.8428C26.3415 17.4819 26.3415 18.518 25.7025 19.157C25.0634 19.796 24.0273 19.796 23.3883 19.157L19.6364 15.4051V24.5454C19.6364 25.4491 18.9038 26.1817 18 26.1817C17.0963 26.1817 16.3637 25.4491 16.3637 24.5454V15.4049L12.6116 19.157C11.9725 19.796 10.9364 19.796 10.2974 19.157C9.65834 18.518 9.65834 17.4819 10.2974 16.8428L16.8428 10.2974C17.0113 10.1289 17.2075 10.0048 17.4166 9.92517C17.6029 9.85424 17.7995 9.81855 17.9962 9.81811L17.9986 9.81811L18 9.8181C18.0151 9.8181 18.0301 9.81831 18.0451 9.81871C18.2321 9.82385 18.4184 9.86086 18.5951 9.92972C18.6217 9.94017 18.6508 9.95233 18.6767 9.96411C18.8098 10.0247 18.9335 10.1026 19.0447 10.1949C19.0833 10.227 19.1208 10.2612 19.157 10.2974L19.1681 10.3084L25.7025 16.8428Z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 rounded-[1.25rem] border border-white/10"
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>
