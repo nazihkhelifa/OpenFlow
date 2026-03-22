@@ -517,13 +517,15 @@ export function ProjectsStitchListPanel({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onNewProject}
-        className="flex h-10 w-full shrink-0 items-center justify-center rounded-full bg-stitch-fg text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#e8eaed]"
-      >
-        New project
-      </button>
+      <div className="w-full shrink-0">
+        <button
+          type="button"
+          onClick={onNewProject}
+          className="flex h-10 w-full items-center justify-center rounded-full bg-stitch-fg text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#e8eaed]"
+        >
+          New project
+        </button>
+      </div>
     </aside>
   );
 }

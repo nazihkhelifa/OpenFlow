@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { ArrowUp, Loader2, Plus } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 import type { WorkflowFile } from "@/store/workflowStore";
 import { getQuickstartDefaults, getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
 import type { LLMModelType, LLMProvider } from "@/types";
@@ -21,7 +21,6 @@ export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroPr
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"assist" | "describe">("assist");
 
   const quickstartDefaults = getQuickstartDefaults();
   const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
@@ -100,41 +99,7 @@ export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroPr
           </p>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="flex size-9 items-center justify-center rounded-full text-stitch-muted transition-colors hover:bg-state-hover hover:text-stitch-fg"
-              title="Add context (coming soon)"
-              aria-label="Add"
-            >
-              <Plus className="size-5" strokeWidth={2} />
-            </button>
-            <div className="inline-flex rounded-full border border-secondary bg-surface-container p-0.5 backdrop-blur-[40px]">
-              <button
-                type="button"
-                onClick={() => setMode("assist")}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  mode === "assist"
-                    ? "bg-state-active text-stitch-fg"
-                    : "text-stitch-muted hover:bg-state-hover hover:text-stitch-fg"
-                }`}
-              >
-                Assist
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("describe")}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  mode === "describe"
-                    ? "bg-state-active text-stitch-fg"
-                    : "text-stitch-muted hover:bg-state-hover hover:text-stitch-fg"
-                }`}
-              >
-                Describe
-              </button>
-            </div>
-          </div>
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-3">
           <button
             type="button"
             onClick={() => void submit()}

@@ -161,19 +161,19 @@ export default function ProjectsPage() {
         <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black">
           <Link
             href="/projects"
-            className="absolute right-4 top-4 z-10 flex size-10 items-center justify-center rounded-xl transition-colors hover:bg-white/[0.06] sm:right-6 sm:top-5"
+            className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-xl py-1.5 pl-1.5 pr-2 transition-colors hover:bg-white/[0.06] sm:left-6 sm:top-5"
             title="Openflows"
           >
-            <img src="/logo.png" alt="" className="size-7 object-contain opacity-95" />
+            <img src="/logo.png" alt="" className="size-7 shrink-0 object-contain opacity-95" />
+            <span className="select-none text-[11px] font-medium text-stitch-muted">Alpha</span>
           </Link>
-          <ProjectsStitchListPanel
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            searchValue={searchQuery}
-            onSearchChange={setSearchQuery}
-            onNewProject={() => openNewProjectModal(null)}
-            onInstantiateTemplate={instantiateTemplateFromSidebar}
-          />
+          <button
+            type="button"
+            onClick={() => openNewProjectModal(null)}
+            className="fixed bottom-6 left-1/2 z-10 h-10 w-[min(264px,calc(100vw-2rem))] -translate-x-1/2 rounded-full bg-stitch-fg text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#e8eaed] md:hidden"
+          >
+            New project
+          </button>
           <main className="flowy-chat-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto bg-black [scrollbar-width:thin]">
             <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-8 py-[15dvh] sm:px-10">
               <div className="flex w-full flex-1 flex-col items-center justify-center">
@@ -183,6 +183,14 @@ export default function ProjectsPage() {
               </div>
             </div>
           </main>
+          <ProjectsStitchListPanel
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            onNewProject={() => openNewProjectModal(null)}
+            onInstantiateTemplate={instantiateTemplateFromSidebar}
+          />
         </div>
       </div>
     </div>
