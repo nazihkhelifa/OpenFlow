@@ -2400,9 +2400,9 @@ export function FlowyAgentPanel({
           )
         : null}
       <div
-        className={`fixed right-5 top-4 z-[60] flex shrink-0 flex-col overflow-hidden transition-[width,height,border-radius,background-color,border-color,box-shadow] duration-[320ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+        className={`fixed right-5 top-4 z-[60] flex shrink-0 origin-top-right flex-col overflow-hidden transition-[width,height,border-radius,background-color,border-color,box-shadow] duration-[460ms] ease-[cubic-bezier(0.22,1.12,0.36,1)] motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:transition-none ${
           isOpen
-            ? "h-[calc(100dvh-2rem-min(20vh,464px))] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+            ? `flowy-agent-morph-open-glow h-[calc(100dvh-2rem-min(20vh,464px))] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl`
             : "h-11 w-11 rounded-full border border-neutral-700 bg-background-transparent-black-default backdrop-blur-[16px]"
         }`}
       >
@@ -2412,7 +2412,7 @@ export function FlowyAgentPanel({
             onClick={() => setFlowyAgentOpen(true)}
             title="Flowy agent"
             aria-label="Open Flowy agent"
-            className="flex h-full w-full shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-neutral-800 focus-visible:ring-2 focus-visible:ring-white/30"
+            className="group flex h-full w-full shrink-0 items-center justify-center rounded-full outline-none transition-[transform,background-color] duration-200 ease-out hover:bg-neutral-800 active:scale-[0.94] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-white/30"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -2424,7 +2424,7 @@ export function FlowyAgentPanel({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-neutral-100"
+              className="flowy-agent-fab-icon text-neutral-100 transition-[transform,filter] duration-300 ease-out group-hover:rotate-12 group-hover:drop-shadow-[0_0_10px_rgba(196,181,253,0.35)] motion-reduce:transition-none"
               aria-hidden
             >
               <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" />
@@ -2437,38 +2437,40 @@ export function FlowyAgentPanel({
             aria-modal="true"
             aria-label="Flowy AI chat"
             data-testid="flowy-sidebar"
-            className="flowy-agent-shell-reveal pointer-events-auto flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden pb-3"
+            className="pointer-events-auto flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden pb-3"
           >
-      <div className="h-3 shrink-0" aria-hidden />
-      <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] px-2 pb-2 pt-0">
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
-          <div className="h-1 w-4 shrink-0 rounded-full bg-white/25" aria-hidden />
-          <h2 className="min-w-0 truncate text-sm font-medium leading-tight tracking-tight text-neutral-100">
-            {activeSession?.title ?? "New Chat"}
-          </h2>
-        </div>
-        <div className="flex shrink-0 items-center justify-center" role="toolbar" aria-label="Sidebar controls">
-          <button
-            type="button"
-            aria-label="Custom prompt instructions"
-            className="rounded-xl p-2 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <Settings2 className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Collapse Flowy chat"
-            title="Collapse to button"
-          >
-            <PanelRightClose className="size-4" strokeWidth={2} aria-hidden />
-          </button>
+      <div className="flowy-agent-shell-header-in flex shrink-0 flex-col">
+        <div className="h-3 shrink-0" aria-hidden />
+        <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] px-2 pb-2 pt-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+            <div className="h-1 w-4 shrink-0 rounded-full bg-white/25" aria-hidden />
+            <h2 className="min-w-0 truncate text-sm font-medium leading-tight tracking-tight text-neutral-100">
+              {activeSession?.title ?? "New Chat"}
+            </h2>
+          </div>
+          <div className="flex shrink-0 items-center justify-center" role="toolbar" aria-label="Sidebar controls">
+            <button
+              type="button"
+              aria-label="Custom prompt instructions"
+              className="rounded-xl p-2 text-neutral-300 transition-[transform,background-color,color] duration-200 hover:bg-white/10 hover:text-white active:scale-95 motion-reduce:active:scale-100"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings2 className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-neutral-300 transition-[transform,background-color,color] duration-200 hover:bg-white/10 hover:text-white active:scale-95 motion-reduce:active:scale-100"
+              aria-label="Collapse Flowy chat"
+              title="Collapse to button"
+            >
+              <PanelRightClose className="size-4" strokeWidth={2} aria-hidden />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="relative -mb-6 flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="flowy-agent-shell-body-in relative -mb-6 flex min-h-0 w-full flex-1 flex-col overflow-hidden">
         <div
           className="flowy-chat-scrollbar flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden pb-12 [scrollbar-width:thin]"
           onWheelCapture={(e) => e.stopPropagation()}
@@ -2754,7 +2756,7 @@ export function FlowyAgentPanel({
 
       <div
         data-testid="flowy-sidebar-footer"
-        className="relative z-10 mt-auto w-full shrink-0 select-text border-t border-white/10"
+        className="flowy-agent-shell-footer-in relative z-10 mt-auto w-full shrink-0 select-text border-t border-white/10"
         style={{ background: "rgb(22 23 24 / 0.98)" }}
       >
         <div
