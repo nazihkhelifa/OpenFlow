@@ -85,6 +85,7 @@ export function Header() {
     new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
   const handleNewProject = () => {
+    setDropdownOpen(false);
     setProjectModalMode("new");
     setShowProjectModal(true);
   };
@@ -184,7 +185,7 @@ export function Header() {
 
           {dropdownOpen && (
             <div
-              className="absolute left-0 top-full mt-2 min-w-[180px] max-w-[220px] rounded-lg border border-neutral-700 bg-neutral-800 shadow-xl py-1 z-[100]"
+              className="absolute left-0 top-full mt-2 z-[100] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 py-1.5 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.45),0_8px_10px_-6px_rgba(0,0,0,0.35)] backdrop-blur-xl"
               data-side="bottom"
               data-align="start"
               role="menu"
@@ -194,7 +195,7 @@ export function Header() {
                   href="/projects"
                   role="menuitem"
                   onClick={() => setDropdownOpen(false)}
-                  className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -209,7 +210,7 @@ export function Header() {
                     setDropdownOpen(false);
                     setShowQuickstart(true);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -217,12 +218,12 @@ export function Header() {
                   Welcome screen
                 </button>
               )}
-              <div className="my-1 border-t border-neutral-600/80" role="separator" aria-hidden />
+              <div className="mx-2 my-1 border-t border-white/10" role="separator" aria-hidden />
               <button
                 type="button"
                 role="menuitem"
                 onClick={handleOpenFile}
-                className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9.414a2 2 0 00-.586-1.414L13 5.586A2 2 0 0011.414 5H5a2 2 0 00-2 2z" />
@@ -230,8 +231,10 @@ export function Header() {
                 Open project
               </button>
               <button
+                type="button"
+                role="menuitem"
                 onClick={isProjectConfigured ? handleOpenSettings : handleNewProject}
-                className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -240,8 +243,10 @@ export function Header() {
               </button>
               {isProjectConfigured && (
               <button
+                type="button"
+                role="menuitem"
                 onClick={handleDuplicateProject}
-                className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -249,14 +254,15 @@ export function Header() {
                 Duplicate project
               </button>
               )}
-              <div className="my-1 border-t border-neutral-600/80" role="separator" aria-hidden />
+              <div className="mx-2 my-1 border-t border-white/10" role="separator" aria-hidden />
               <button
                 type="button"
+                role="menuitem"
                 onClick={() => {
                   setDropdownOpen(false);
                   setShortcutsDialogOpen(true);
                 }}
-                className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                 title="Commands (?)"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -264,7 +270,7 @@ export function Header() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
                 </svg>
                 <span className="min-w-0 flex-1">Commands</span>
-                <kbd className="hidden shrink-0 rounded border border-neutral-600 bg-neutral-900/80 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 sm:inline">
+                <kbd className="hidden shrink-0 rounded border border-white/15 bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 sm:inline">
                   ?
                 </kbd>
               </button>
