@@ -20,6 +20,10 @@ vi.mock("@/components/ProjectSetupModal", () => ({
     isOpen ? <div data-testid="project-setup-modal" data-mode={mode}>Project Setup Modal</div> : null,
 }));
 
+vi.mock("@/components/GlobalImageHistory", () => ({
+  GlobalImageHistory: () => null,
+}));
+
 const createDefaultState = (overrides = {}) => ({
   workflowName: "",
   workflowId: "",
@@ -39,6 +43,8 @@ const createDefaultState = (overrides = {}) => ({
   flowyAgentOpen: false,
   flowyHistoryRailOpen: false,
   toggleFlowyHistoryRail: vi.fn(),
+  setFlowyAgentOpen: vi.fn(),
+  setFlowyHistoryRailOpen: vi.fn(),
   ...overrides,
 });
 
@@ -49,9 +55,11 @@ describe("Header", () => {
   });
 
   describe("Basic Rendering", () => {
-    it("should render the banana icon", () => {
+    it("should render the banana logo in the menu button", () => {
       render(<Header />);
-      const icon = screen.getByAltText("Openflows");
+      const menu = screen.getByRole("button", { name: "Openflows menu" });
+      expect(menu).toBeInTheDocument();
+      const icon = menu.querySelector("img");
       expect(icon).toBeInTheDocument();
       expect(icon).toHaveAttribute("src", "/banana_icon.png");
     });
@@ -104,16 +112,16 @@ describe("Header", () => {
       );
     });
 
-    it("should open dropdown when project pill is clicked", () => {
+    it("should open dropdown when logo menu is clicked", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("My Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       expect(screen.getByText("Rename project")).toBeInTheDocument();
       expect(screen.getByText("Duplicate project")).toBeInTheDocument();
     });
 
     it("should open ProjectSetupModal in settings mode when Rename project clicked", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("My Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       fireEvent.click(screen.getByText("Rename project"));
       const modal = screen.getByTestId("project-setup-modal");
       expect(modal).toBeInTheDocument();
@@ -122,7 +130,7 @@ describe("Header", () => {
 
     it("should open ProjectSetupModal in duplicate mode when Duplicate project clicked", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("My Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       fireEvent.click(screen.getByText("Duplicate project"));
       const modal = screen.getByTestId("project-setup-modal");
       expect(modal).toBeInTheDocument();
@@ -131,7 +139,7 @@ describe("Header", () => {
 
     it("should show Open project in dropdown", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("My Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       expect(screen.getByText("Open project")).toBeInTheDocument();
     });
   });
@@ -139,7 +147,7 @@ describe("Header", () => {
   describe("Unconfigured Project Dropdown", () => {
     it("should show New project instead of Rename when unconfigured", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("Untitled Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       expect(screen.getByText("New project")).toBeInTheDocument();
       expect(screen.queryByText("Rename project")).not.toBeInTheDocument();
       expect(screen.queryByText("Duplicate project")).not.toBeInTheDocument();
@@ -147,7 +155,7 @@ describe("Header", () => {
 
     it("should open ProjectSetupModal in new mode when New project clicked", () => {
       render(<Header />);
-      fireEvent.click(screen.getByText("Untitled Project"));
+      fireEvent.click(screen.getByRole("button", { name: "Openflows menu" }));
       fireEvent.click(screen.getByText("New project"));
       const modal = screen.getByTestId("project-setup-modal");
       expect(modal).toBeInTheDocument();

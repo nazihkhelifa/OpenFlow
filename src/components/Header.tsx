@@ -102,6 +102,7 @@ export function Header() {
   };
 
   const handleOpenFile = () => {
+    setDropdownOpen(false);
     fileInputRef.current?.click();
   };
 
@@ -167,46 +168,18 @@ export function Header() {
 
       {/* Floating header bar - arty style */}
       <div className="absolute top-4 left-4 right-0 z-[50] m-4 flex items-center gap-2 sm:right-auto">
-        {/* Logo */}
-        <div className="flex shrink-0">
-          {isProjectPage ? (
-            <Link
-              href="/projects"
-              className="h-10 w-10 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden bg-[#353535]/90 backdrop-blur-sm border border-neutral-600/50 hover:scale-105"
-              title="Back to projects"
-            >
-              <img src="/banana_icon.png" alt="Openflows" className="w-6 h-6" />
-            </Link>
-          ) : (
-            <button
-              onClick={() => setShowQuickstart(true)}
-              className="h-10 w-10 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden bg-[#353535]/90 backdrop-blur-sm border border-neutral-600/50 hover:scale-105"
-              title="Open welcome screen"
-            >
-              <img src="/banana_icon.png" alt="Openflows" className="w-6 h-6" />
-            </button>
-          )}
-        </div>
-
-        {/* Project pill with dropdown + settings */}
-        <div className="flex flex-1 items-center gap-2 min-w-0 max-w-[320px]" ref={dropdownRef}>
-          <div className="flex flex-1 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)]/90 p-1.5 pr-2 shadow-sm backdrop-blur-sm min-w-0">
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex flex-1 items-center min-w-0 text-left px-3 py-1 text-sm text-neutral-200 truncate"
-            >
-              {projectDisplayName}
-            </button>
-          </div>
+        {/* Logo: opens app menu (project actions live here, not on the name pill) */}
+        <div className="relative shrink-0" ref={dropdownRef}>
           <button
-            onClick={handleOpenSettings}
-            className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-card)]/90 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 backdrop-blur-sm transition-colors"
-            title="Project settings"
+            type="button"
+            onClick={() => setDropdownOpen((o) => !o)}
+            className="h-10 w-10 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden bg-[#353535]/90 backdrop-blur-sm border border-neutral-600/50 hover:scale-105 motion-reduce:hover:scale-100"
+            title="Openflows menu"
+            aria-label="Openflows menu"
+            aria-expanded={dropdownOpen}
+            aria-haspopup="menu"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <img src="/banana_icon.png" alt="" className="w-6 h-6" />
           </button>
 
           {dropdownOpen && (
@@ -214,8 +187,40 @@ export function Header() {
               className="absolute left-0 top-full mt-2 min-w-[180px] max-w-[220px] rounded-lg border border-neutral-700 bg-neutral-800 shadow-xl py-1 z-[100]"
               data-side="bottom"
               data-align="start"
+              role="menu"
             >
+              {isProjectPage ? (
+                <Link
+                  href="/projects"
+                  role="menuitem"
+                  onClick={() => setDropdownOpen(false)}
+                  className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Back to projects
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setShowQuickstart(true);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  Welcome screen
+                </button>
+              )}
+              <div className="my-1 border-t border-neutral-600/80" role="separator" aria-hidden />
               <button
+                type="button"
+                role="menuitem"
                 onClick={handleOpenFile}
                 className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
               >
@@ -252,19 +257,42 @@ export function Header() {
                   setShortcutsDialogOpen(true);
                 }}
                 className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 flex items-center gap-2"
-                title="Keyboard shortcuts (?)"
+                title="Commands (?)"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75A2.25 2.25 0 014.5 4.5h15a2.25 2.25 0 012.25 2.25v10.5A2.25 2.25 0 0119.5 19.5h-15a2.25 2.25 0 01-2.25-2.25V6.75z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
                 </svg>
-                <span className="min-w-0 flex-1">Keyboard shortcuts</span>
+                <span className="min-w-0 flex-1">Commands</span>
                 <kbd className="hidden shrink-0 rounded border border-neutral-600 bg-neutral-900/80 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 sm:inline">
                   ?
                 </kbd>
               </button>
             </div>
           )}
+        </div>
+
+        {/* Project name (display only) + settings */}
+        <div className="flex flex-1 items-center gap-2 min-w-0 max-w-[320px]">
+          <div className="flex flex-1 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)]/90 p-1.5 pr-2 shadow-sm backdrop-blur-sm min-w-0">
+            <div
+              className="flex flex-1 items-center min-w-0 px-3 py-1 text-sm text-neutral-200 truncate select-none"
+              title={projectDisplayName}
+            >
+              {projectDisplayName}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenSettings}
+            className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-card)]/90 flex items-center justify-center text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 backdrop-blur-sm transition-colors"
+            title="Project settings"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
         </div>
 
         {/* Right actions */}
