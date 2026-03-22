@@ -65,7 +65,7 @@ export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroPr
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-8">
-      <div>
+      <div className="text-center">
         <h1 className="text-[2rem] font-normal leading-tight tracking-tight text-stitch-fg sm:text-[2.25rem]">
           Welcome to Openflows
         </h1>
