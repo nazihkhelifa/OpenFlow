@@ -25,6 +25,45 @@
     "easeCurve",
     "reference"
   ],
+  "extraHandleIds": [
+    "generic-input",
+    "generic-output",
+    "prompt",
+    "negative_prompt",
+    "image-1"
+  ],
+  "handleIdSuffixPattern": "^(image|text|audio)-[0-9]+$",
+  "nodeHandlesCatalog": {
+    "mediaInput": { "inputs": ["reference", "audio", "3d"], "outputs": ["image", "audio", "video"] },
+    "annotation": { "inputs": ["image"], "outputs": ["image"] },
+    "prompt": { "inputs": ["text", "image"], "outputs": ["text"] },
+    "generateImage": { "inputs": ["image", "text"], "outputs": ["image"] },
+    "generateVideo": { "inputs": ["image", "text"], "outputs": ["video"] },
+    "generate3d": { "inputs": ["image", "text"], "outputs": ["3d"] },
+    "generateAudio": { "inputs": ["text"], "outputs": ["audio"] },
+    "imageCompare": { "inputs": ["image", "image-1"], "outputs": [] },
+    "easeCurve": { "inputs": ["video", "easeCurve"], "outputs": ["video", "easeCurve"] },
+    "router": {
+      "inputs": ["image", "text", "video", "audio", "3d", "easeCurve", "generic-input"],
+      "outputs": ["image", "text", "video", "audio", "3d", "easeCurve", "generic-output"]
+    },
+    "switch": { "inputs": ["generic-input"], "outputs": ["(dynamic, matches inputType)"] },
+    "conditionalSwitch": { "inputs": ["text"], "outputs": ["(dynamic text routes)"] },
+    "glbViewer": { "inputs": ["3d"], "outputs": ["image"] }
+  },
+  "connectionGuidance": [
+    "Handle categories (from handle id): image — image, image-N, frames; text — text, text-N, prompt, negative_prompt; video; audio; 3d; easeCurve; reference (mediaInput attachment). generic-input / generic-output on router are wildcards until resolved.",
+    "Default rule: connect same handle category to same category (image→image, text→text, etc.).",
+    "switch: one input generic-input accepts any type; outputs match data.inputType once set.",
+    "conditionalSwitch: text outputs only connect to text inputs; sources only to text targets.",
+    "video source: may target generateVideo, easeCurve, or router only.",
+    "3d: 3d↔3d, or either end may be router.",
+    "audio: audio↔audio, or audio→router.",
+    "easeCurve: easeCurve↔easeCurve when target node is easeCurve, or either end may be router.",
+    "If handle type is unknown (null), the canvas may allow the edge; still use explicit ids from nodeHandlesCatalog when possible.",
+    "Dynamic model-driven ports on video/3d/audio nodes often use image-0, text-1, etc.; category is taken from the prefix before -N.",
+    "mediaInput: use targetHandle reference when attaching a file reference edge; outputs are image / audio / video."
+  ],
   "operationTypes": [
     "addNode",
     "removeNode",

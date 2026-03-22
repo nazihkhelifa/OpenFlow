@@ -2,6 +2,31 @@ import { GroupColor, NodeGroup, NodeType, WorkflowNode, WorkflowNodeData } from 
 import { WorkflowEdge } from "@/types/workflow";
 import { createDefaultNodeData } from "@/store/utils/nodeDefaults";
 import { defaultNodeDimensions } from "@/store/utils/nodeDefaults";
+import { getHandleType } from "@/lib/workflow/canvasConnectionRules";
+
+/** Skip addEdge if an equivalent link already exists (e.g. after assist drag created it). */
+function workflowEdgeMatchesAddEdgeOp(
+  op: { source: string; target: string; sourceHandle?: string; targetHandle?: string },
+  e: WorkflowEdge
+): boolean {
+  if (e.source !== op.source || e.target !== op.target) return false;
+  const sh = op.sourceHandle != null ? String(op.sourceHandle).trim() : "";
+  const th = op.targetHandle != null ? String(op.targetHandle).trim() : "";
+  if (!sh && !th) return false;
+
+  const side = (planned: string, actual: string | null | undefined): boolean => {
+    if (!planned) return true;
+    const a = actual != null ? String(actual).trim() : "";
+    if (!a) return false;
+    if (planned === a) return true;
+    const pt = getHandleType(planned);
+    const at = getHandleType(a);
+    if (pt && at) return pt === at;
+    return false;
+  };
+
+  return side(sh, e.sourceHandle) && side(th, e.targetHandle);
+}
 
 /**
  * Generate Image: Gemini reads `data.aspectRatio`; Replicate/fal/kie show aspect via
@@ -259,15 +284,26 @@ export function applyEditOperations(
           break;
         }
 
+        if (edges.some((e) => workflowEdgeMatchesAddEdgeOp(operation, e))) {
+          applied++;
+          break;
+        }
+
         // Generate edge ID
         const handleSuffix = operation.sourceHandle
           ? `-${operation.sourceHandle}`
           : "";
         const edgeId = `edge-ai-${operation.source}-${operation.target}${handleSuffix}`;
 
+        const edgeType =
+          String(operation.targetHandle ?? "").trim() === "reference"
+            ? "reference"
+            : "editable";
+
         // Create new edge
         const newEdge: WorkflowEdge = {
           id: edgeId,
+          type: edgeType,
           source: operation.source,
           target: operation.target,
           sourceHandle: operation.sourceHandle,

@@ -17,6 +17,7 @@ from canvas_context import (
     build_execution_digest_for_llm,
     load_planner_schema,
 )
+from connection_validation import handle_id_allowed, validate_planned_edge
 
 
 FLOWY_DEEPAGENTS_DIR = os.path.join(os.path.dirname(__file__), "")
@@ -424,6 +425,7 @@ def _planner_allowlists() -> Tuple[Set[str], Set[str], Set[str]]:
     schema = load_planner_schema(script_dir)
     nodes = set(str(x) for x in (schema.get("nodeTypes") or []))
     handles = set(str(x) for x in (schema.get("handleTypes") or []))
+    handles |= set(str(x) for x in (schema.get("extraHandleIds") or []))
     ops = set(str(x) for x in (schema.get("operationTypes") or []))
     if not nodes or not handles or not ops:
         raise ValueError("planner_schema.json missing nodeTypes, handleTypes, or operationTypes")
@@ -863,20 +865,21 @@ def _safe_extract_first_json_object(text: str) -> Dict[str, Any]:
         return {}
 
 
-def _validate_edge_handles(source_handle: Optional[str], target_handle: Optional[str]) -> Optional[str]:
-    allowed_handles = _planner_allowlists()[1]
-    if not source_handle and not target_handle:
-        return "Edge handles must be provided (sourceHandle and targetHandle)."
-    if source_handle not in allowed_handles:
-        return f"Invalid sourceHandle '{source_handle}'."
-    if target_handle not in allowed_handles:
-        return f"Invalid targetHandle '{target_handle}'."
-
-    # Matching rule (except 'reference'): connect handle types by equality.
-    if source_handle == "reference" or target_handle == "reference":
-        return None
-    if source_handle != target_handle:
-        return f"Handle mismatch: {source_handle} -> {target_handle}."
+def _validate_edge_handles(
+    source_handle: Optional[str],
+    target_handle: Optional[str],
+    schema: Dict[str, Any],
+) -> Optional[str]:
+    if not source_handle or not str(source_handle).strip():
+        return "sourceHandle is required."
+    if not target_handle or not str(target_handle).strip():
+        return "targetHandle is required."
+    sh = str(source_handle).strip()
+    th = str(target_handle).strip()
+    if not handle_id_allowed(sh, schema):
+        return f"Invalid sourceHandle '{sh}'."
+    if not handle_id_allowed(th, schema):
+        return f"Invalid targetHandle '{th}'."
     return None
 
 
@@ -895,6 +898,22 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
 
     # Simulate node presence in plan order so clearCanvas / removeNode / addNode chains validate correctly.
     sim_nodes: set[str] = set(initial_node_ids)
+    sim_meta: Dict[str, Dict[str, Any]] = {}
+    for n in initial_nodes:
+        if not isinstance(n, dict):
+            continue
+        nid = n.get("id")
+        if not nid:
+            continue
+        ns = str(nid)
+        sim_meta[ns] = {
+            "id": ns,
+            "type": n.get("type"),
+            "data": n.get("data") if isinstance(n.get("data"), dict) else {},
+        }
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    planner_schema = load_planner_schema(script_dir)
 
     for idx, op in enumerate(operations):
         if not isinstance(op, dict):
@@ -920,6 +939,11 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
                 id_ok = False
             if type_ok and id_ok:
                 sim_nodes.add(node_id)
+                sim_meta[str(node_id)] = {
+                    "id": str(node_id),
+                    "type": node_type,
+                    "data": op.get("data") if isinstance(op.get("data"), dict) else {},
+                }
 
         elif op_type == "removeNode":
             node_id = op.get("nodeId")
@@ -927,6 +951,7 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
                 errors.append(f"operations[{idx}].nodeId not found: {node_id}")
             else:
                 sim_nodes.discard(node_id)
+                sim_meta.pop(str(node_id), None)
 
         elif op_type == "updateNode":
             node_id = op.get("nodeId")
@@ -946,9 +971,19 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
 
             sh = op.get("sourceHandle")
             th = op.get("targetHandle")
-            handle_error = _validate_edge_handles(sh, th)
+            handle_error = _validate_edge_handles(sh, th, planner_schema)
             if handle_error:
                 errors.append(f"operations[{idx}] edge handle error: {handle_error}")
+            else:
+                sem_err = validate_planned_edge(
+                    str(source),
+                    str(target),
+                    str(sh) if sh is not None else None,
+                    str(th) if th is not None else None,
+                    list(sim_meta.values()),
+                )
+                if sem_err:
+                    errors.append(f"operations[{idx}] edge semantics: {sem_err}")
 
         elif op_type == "removeEdge":
             edge_id = op.get("edgeId")
@@ -1001,6 +1036,7 @@ def _validate_edit_operations(operations: List[Dict[str, Any]], workflow_state: 
             if extra:
                 errors.append(f"operations[{idx}] clearCanvas must not include extra keys: {sorted(extra)}")
             sim_nodes.clear()
+            sim_meta.clear()
 
     return {"ok": not errors, "errors": errors}
 

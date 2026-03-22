@@ -18,7 +18,8 @@ interface EdgeData extends WorkflowEdgeData {
 
 // Colors for different connection types (dimmed for softer appearance)
 const EDGE_COLORS: Record<string, string> = {
-  image: "#e5e5e5", // Light/white for image connections
+  // Match --handle-color-image (globals.css); light gray was nearly invisible at low gradient opacity
+  image: "#10b981",
   prompt: "#2563eb", // Blue for prompt connections
   default: "#64748b", // Gray for unknown
   pause: "#ea580c", // Orange for paused edges

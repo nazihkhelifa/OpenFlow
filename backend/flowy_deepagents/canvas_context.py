@@ -331,6 +331,19 @@ def build_canvas_context_for_llm(
         ctx["summary"]["edgesTruncated"] = True
 
     ctx["summary"]["approxJsonChars"] = measure()
+
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        schema = load_planner_schema(script_dir)
+        cg = schema.get("connectionGuidance")
+        if isinstance(cg, list) and cg:
+            ctx["connectionGuidance"] = cg
+        catalog = schema.get("nodeHandlesCatalog")
+        if isinstance(catalog, dict) and catalog:
+            ctx["nodeHandlesCatalog"] = catalog
+    except Exception:
+        pass
+
     return ctx
 
 

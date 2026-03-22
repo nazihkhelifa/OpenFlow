@@ -58,6 +58,11 @@ import { PromptEditorModal } from "./modals/PromptEditorModal";
 import { AnnotationModal } from "./AnnotationModal";
 import { createPortal } from "react-dom";
 import { useAnnotationStore } from "@/store/annotationStore";
+import {
+  getHandleType,
+  getNodeHandles,
+  isValidWorkflowConnection,
+} from "@/lib/workflow/canvasConnectionRules";
 
 const nodeTypes: NodeTypes = {
   mediaInput: UploadNode,
@@ -79,68 +84,6 @@ const nodeTypes: NodeTypes = {
 const edgeTypes: EdgeTypes = {
   editable: EditableEdge,
   reference: ReferenceEdge,
-};
-
-// Connection validation rules
-// - Image handles (green) can only connect to image handles
-// - Text handles (blue) can only connect to text handles
-// - Video handles can only connect to generateVideo or output nodes
-// Helper to determine handle type from handle ID
-// For dynamic handles, we use naming convention: image inputs contain "image", text inputs are "prompt" or "negative_prompt"
-const getHandleType = (handleId: string | null | undefined): "image" | "text" | "video" | "audio" | "3d" | "easeCurve" | null => {
-  if (!handleId) return null;
-  // Generic Router handles — return null to allow any type connection
-  if (handleId === "generic-input" || handleId === "generic-output") return null;
-  // EaseCurve handles (must check before other types)
-  if (handleId === "easeCurve") return "easeCurve";
-  // 3D handles
-  if (handleId === "3d") return "3d";
-  // Standard handles
-  if (handleId === "video") return "video";
-  if (handleId === "audio" || handleId.startsWith("audio")) return "audio";
-  if (handleId === "image" || handleId === "text") return handleId;
-  // Dynamic handles - check naming patterns (including indexed: text-0, image-0)
-  if (handleId.includes("video")) return "video";
-  if (handleId.startsWith("image-") || handleId.includes("image") || handleId.includes("frame")) return "image";
-  if (handleId.startsWith("text-") || handleId === "prompt" || handleId === "negative_prompt" || handleId.includes("prompt")) return "text";
-  return null;
-};
-
-// Define which handles each node type has
-const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[] } => {
-  switch (nodeType) {
-    case "mediaInput":
-      return { inputs: ["reference", "audio", "3d"], outputs: ["image", "audio", "video"] };
-    case "annotation":
-      return { inputs: ["image"], outputs: ["image"] };
-    case "prompt":
-      return { inputs: ["text", "image"], outputs: ["text"] };
-    case "generateImage":
-      return { inputs: ["image", "text"], outputs: ["image"] };
-    case "generateVideo":
-      return { inputs: ["image", "text"], outputs: ["video"] };
-    case "generate3d":
-      return { inputs: ["image", "text"], outputs: ["3d"] };
-    case "generateAudio":
-      return { inputs: ["text"], outputs: ["audio"] };
-    case "imageCompare":
-      return { inputs: ["image", "image-1"], outputs: [] };
-    case "easeCurve":
-      return { inputs: ["video", "easeCurve"], outputs: ["video", "easeCurve"] };
-    case "router":
-      return { inputs: ["image", "text", "video", "audio", "3d", "easeCurve", "generic-input"], outputs: ["image", "text", "video", "audio", "3d", "easeCurve", "generic-output"] };
-    case "switch":
-      // Switch has one input handle (generic-input when disconnected, typed when connected)
-      // Output handles are dynamic based on switches array, all matching inputType
-      return { inputs: ["generic-input"], outputs: [] }; // Outputs handled dynamically in SwitchNode
-    case "conditionalSwitch":
-      // Conditional Switch has one text input and dynamic rule outputs + default
-      return { inputs: ["text"], outputs: [] }; // Outputs handled dynamically in ConditionalSwitchNode
-    case "glbViewer":
-      return { inputs: ["3d"], outputs: ["image"] };
-    default:
-      return { inputs: [], outputs: [] };
-  }
 };
 
 interface ConnectionDropState {
@@ -437,84 +380,8 @@ export function WorkflowCanvas() {
   // Connection validation - checks if a connection is valid based on handle types and node types
   // Defined inside component to have access to nodes array for video validation
   const isValidConnection = useCallback(
-    (connection: Connection | Edge): boolean => {
-      const sourceType = getHandleType(connection.sourceHandle);
-      const targetType = getHandleType(connection.targetHandle);
-
-      // Switch input: accept any type (generic-input handle)
-      const targetNode = nodes.find((n) => n.id === connection.target);
-      const sourceNode = nodes.find((n) => n.id === connection.source);
-      if (targetNode?.type === "switch" && connection.targetHandle === "generic-input") return true;
-
-      // Switch output: the type is determined by inputType stored in node data
-      if (sourceNode?.type === "switch") {
-        const switchData = sourceNode.data as { inputType?: string | null };
-        if (switchData.inputType && targetType) {
-          return switchData.inputType === targetType;
-        }
-        // If inputType not set yet, allow connection (will be resolved)
-        return true;
-      }
-
-      // Conditional Switch: text input only, text outputs only
-      if (targetNode?.type === "conditionalSwitch") {
-        return sourceType === "text";
-      }
-      if (sourceNode?.type === "conditionalSwitch") {
-        return targetType === "text";
-      }
-
-      // If we can't determine types, allow the connection
-      if (!sourceType || !targetType) return true;
-
-      // EaseCurve connections: only between easeCurve nodes (or router)
-      if (sourceType === "easeCurve" || targetType === "easeCurve") {
-        const targetNode = nodes.find((n) => n.id === connection.target);
-        const sourceNode = nodes.find((n) => n.id === connection.source);
-        if (targetNode?.type === "router" || sourceNode?.type === "router") return true;
-        if (sourceType !== "easeCurve" || targetType !== "easeCurve") return false;
-        return targetNode?.type === "easeCurve";
-      }
-
-      // Video connections have special rules
-      if (sourceType === "video") {
-        // Video source can ONLY connect to:
-        // 1. generateVideo nodes (for video-to-video)
-        // 2. easeCurve / router (processing or passthrough)
-        // 3. output nodes (for display)
-        const targetNode = nodes.find((n) => n.id === connection.target);
-        if (!targetNode) return false;
-
-        const targetNodeType = targetNode.type;
-        if (targetNodeType === "generateVideo" || targetNodeType === "easeCurve" || targetNodeType === "router") {
-          return true;
-        }
-        // Video cannot connect to other node types
-        return false;
-      }
-
-      // 3D connections: 3d handles can only connect to matching 3d handles (or router)
-      if (sourceType === "3d" || targetType === "3d") {
-        // Allow 3d connections to router nodes
-        const sourceNode = nodes.find((n) => n.id === connection.source);
-        const targetNode = nodes.find((n) => n.id === connection.target);
-        if (sourceNode?.type === "router" || targetNode?.type === "router") return true;
-        return sourceType === "3d" && targetType === "3d";
-      }
-
-      // Audio connections: audio handles connect to audio handles, plus output node (or router)
-      if (sourceType === "audio" || targetType === "audio") {
-        if (sourceType === "audio") {
-          const targetNode = nodes.find((n) => n.id === connection.target);
-          if (targetNode?.type === "router") return true;
-        }
-        return sourceType === "audio" && targetType === "audio";
-      }
-
-      // Standard type matching for image and text
-      // Image handles connect to image handles, text handles connect to text handles
-      return sourceType === targetType;
-    },
+    (connection: Connection | Edge): boolean =>
+      isValidWorkflowConnection(connection, nodes),
     [nodes]
   );
 

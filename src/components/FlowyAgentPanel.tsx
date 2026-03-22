@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import type { EditOperation } from "@/lib/chat/editOperations";
 import { executeOperationWithMouse, type OrchestratorDeps } from "@/lib/flowy/agentCanvasOrchestrator";
+import { planEdgeMatchesStoreEdge } from "@/lib/workflow/canvasConnectionRules";
 import {
   buildOpenflowAgentSnapshot,
   describeOpenflowUiCommand,
@@ -1654,6 +1655,25 @@ export function FlowyAgentPanel({
             id: n.id,
             selected: n.id === nodeId,
           }))
+        );
+      },
+      hasPlanEdge: (edgeOp) => {
+        const { edges } = useWorkflowStore.getState();
+        return edges.some((e) =>
+          planEdgeMatchesStoreEdge(
+            {
+              source: edgeOp.source,
+              target: edgeOp.target,
+              sourceHandle: edgeOp.sourceHandle ?? undefined,
+              targetHandle: edgeOp.targetHandle ?? undefined,
+            },
+            {
+              source: e.source,
+              target: e.target,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle,
+            }
+          )
         );
       },
     }),

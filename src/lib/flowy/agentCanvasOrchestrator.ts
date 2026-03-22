@@ -230,21 +230,131 @@ function getNodeTextarea(nodeId: string): HTMLTextAreaElement | null {
   return nodeEl.querySelector("textarea") as HTMLTextAreaElement | null;
 }
 
-function getHandleCenter(
+/**
+ * Resolve a React Flow handle DOM node. Source vs target matters when the same id exists
+ * on both sides (e.g. generateImage has target id "image" and source id "image").
+ */
+function getHandleDomElement(
   nodeId: string,
-  handleId?: string
-): { x: number; y: number } | null {
+  handleId: string | undefined,
+  role: "source" | "target"
+): HTMLElement | null {
   const nodeEl = document.querySelector(
     `.react-flow__node[data-id="${CSS.escape(nodeId)}"]`
-  );
+  ) as HTMLElement | null;
   if (!nodeEl) return null;
-  const handleSelector = handleId
-    ? `.react-flow__handle[data-handleid="${CSS.escape(handleId)}"]`
-    : ".react-flow__handle";
-  const handle = nodeEl.querySelector(handleSelector) as HTMLElement | null;
-  if (!handle) return null;
-  const rect = handle.getBoundingClientRect();
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  const roleToken = role === "source" ? "source" : "target";
+  if (handleId) {
+    const primary = nodeEl.querySelector(
+      `.react-flow__handle.${roleToken}[data-handleid="${CSS.escape(handleId)}"]`
+    ) as HTMLElement | null;
+    if (primary) return primary;
+    const all = nodeEl.querySelectorAll(
+      `.react-flow__handle[data-handleid="${CSS.escape(handleId)}"]`
+    );
+    for (const h of all) {
+      const el = h as HTMLElement;
+      if (role === "source" && el.classList.contains("source")) return el;
+      if (role === "target" && el.classList.contains("target")) return el;
+    }
+    return null;
+  }
+  return nodeEl.querySelector(
+    `.react-flow__handle.${roleToken}`
+  ) as HTMLElement | null;
+}
+
+function clientCenter(el: HTMLElement): { x: number; y: number } {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+/**
+ * Real wiring: pointer path matches @xyflow/system (mousedown on source handle →
+ * document mousemoves → mouseup at target). Runs the same isValidConnection / onConnect path as a user.
+ */
+async function simulateHandleDragConnection(
+  sourceNodeId: string,
+  sourceHandleId: string | undefined,
+  targetNodeId: string,
+  targetHandleId: string | undefined,
+  sleepFn: SleepFn,
+  setCursor: CursorSetter,
+  getCursorPos: () => { x: number; y: number }
+): Promise<boolean> {
+  const srcEl = getHandleDomElement(sourceNodeId, sourceHandleId, "source");
+  const tgtEl = getHandleDomElement(targetNodeId, targetHandleId, "target");
+  if (!srcEl || !tgtEl) return false;
+
+  const start = clientCenter(srcEl);
+  const end = clientCenter(tgtEl);
+
+  await animateCursorTo(start.x, start.y, 280, setCursor, sleepFn, getCursorPos());
+  await sleepFn(90);
+
+  const fireMouse = (
+    type: "mousedown" | "mousemove" | "mouseup",
+    x: number,
+    y: number,
+    buttons: number,
+    target: EventTarget
+  ) => {
+    target.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: x,
+        clientY: y,
+        button: 0,
+        buttons,
+      })
+    );
+  };
+
+  const firePointer = (
+    type: "pointerdown" | "pointermove" | "pointerup",
+    x: number,
+    y: number,
+    buttons: number,
+    target: EventTarget
+  ) => {
+    target.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+        button: 0,
+        buttons,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+      })
+    );
+  };
+
+  firePointer("pointerdown", start.x, start.y, 1, srcEl);
+  fireMouse("mousedown", start.x, start.y, 1, srcEl);
+  await sleepFn(30);
+
+  const steps = 14;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const ease = t * t;
+    const x = start.x + (end.x - start.x) * ease;
+    const y = start.y + (end.y - start.y) * ease;
+    setCursor({ x, y });
+    firePointer("pointermove", x, y, 1, document);
+    fireMouse("mousemove", x, y, 1, document);
+    await sleepFn(20);
+  }
+
+  setCursor({ x: end.x, y: end.y });
+  firePointer("pointerup", end.x, end.y, 0, document);
+  fireMouse("mouseup", end.x, end.y, 0, document);
+  await sleepFn(80);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +461,13 @@ export interface OrchestratorDeps {
   getViewportZoom: () => number;
   /** Ensures exactly this node is selected so Control Panel / node toolbars reflect it */
   ensureNodeSelected?: (nodeId: string) => void;
+  /**
+   * After a drag-connect attempt, verify the edge exists (stored handles may differ from the plan
+   * after router/switch resolution — match via planEdgeMatchesStoreEdge).
+   */
+  hasPlanEdge?: (
+    op: Extract<EditOperation, { type: "addEdge" }>
+  ) => boolean;
 }
 
 export async function executeOperationWithMouse(
@@ -565,7 +682,8 @@ async function executeUpdateNode(
 }
 
 // ---------------------------------------------------------------------------
-// addEdge: move cursor from source handle → target handle → connect via store
+// addEdge: drag from source handle → target handle (real React Flow connect path).
+// Falls back to applyOps only if handles are missing or verification fails.
 // ---------------------------------------------------------------------------
 
 async function executeAddEdge(
@@ -576,28 +694,27 @@ async function executeAddEdge(
 
   setCursor({ actionLabel: "connecting" });
 
-  // Move to source handle
-  const sourceHandle = getHandleCenter(op.source, op.sourceHandle);
-  const sourceNode = getNodeScreenCenter(op.source);
-  const sourcePos = sourceHandle ?? sourceNode;
-  if (sourcePos) {
-    await animateCursorTo(sourcePos.x, sourcePos.y, 300, setCursor, sleep, getCursorPos());
-    emitClickRipple(sourcePos.x, sourcePos.y, setCursor);
+  const dragged = await simulateHandleDragConnection(
+    op.source,
+    op.sourceHandle ?? undefined,
+    op.target,
+    op.targetHandle ?? undefined,
+    sleep,
+    setCursor,
+    getCursorPos
+  );
+
+  if (!dragged) {
+    deps.applyOps([op]);
     await sleep(200);
+    return null;
   }
 
-  // Move to target handle
-  const targetHandle = getHandleCenter(op.target, op.targetHandle);
-  const targetNode = getNodeScreenCenter(op.target);
-  const targetPos = targetHandle ?? targetNode;
-  if (targetPos) {
-    await animateCursorTo(targetPos.x, targetPos.y, 400, setCursor, sleep, getCursorPos());
-    emitClickRipple(targetPos.x, targetPos.y, setCursor);
-    await sleep(150);
+  await sleep(400);
+  const verified = deps.hasPlanEdge ? deps.hasPlanEdge(op) : true;
+  if (!verified) {
+    deps.applyOps([op]);
   }
-
-  // Create the connection via the store pipeline
-  deps.applyOps([op]);
   await sleep(200);
 
   return null;

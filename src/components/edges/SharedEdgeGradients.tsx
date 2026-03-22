@@ -5,7 +5,7 @@
 // <defs>/<linearGradient> in every edge component.
 
 const EDGE_COLORS: Record<string, string> = {
-  image: "#e5e5e5",
+  image: "#10b981",
   prompt: "#2563eb",
   default: "#404040",
   pause: "#ea580c",

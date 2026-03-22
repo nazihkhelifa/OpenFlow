@@ -135,7 +135,7 @@ describe("EditableEdge", () => {
 
       const gradientStop = container.querySelector("linearGradient stop");
       expect(gradientStop).toBeInTheDocument();
-      expect(gradientStop?.getAttribute("stop-color")).toBe("#e5e5e5");
+      expect(gradientStop?.getAttribute("stop-color")).toBe("#10b981");
     });
 
     it("should use blue color for prompt handle type", () => {

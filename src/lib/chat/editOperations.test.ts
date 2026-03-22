@@ -425,6 +425,30 @@ describe("applyEditOperations", () => {
       expect(newEdge.targetHandle).toBe("text");
     });
 
+    it("does not add a second edge when an equivalent link already exists", () => {
+      const existing: WorkflowEdge[] = [
+        createTestEdge("e0", "prompt-1", "gen-1", "text", "text"),
+      ];
+      const ops: EditOperation[] = [
+        {
+          type: "addEdge",
+          source: "prompt-1",
+          target: "gen-1",
+          sourceHandle: "text",
+          targetHandle: "text",
+        },
+      ];
+
+      const result = applyEditOperations(ops, {
+        nodes: baseNodes,
+        edges: existing,
+      });
+
+      expect(result.edges).toHaveLength(1);
+      expect(result.applied).toBe(1);
+      expect(result.skipped).toHaveLength(0);
+    });
+
     it("generates edge ID with handle suffix when sourceHandle provided", () => {
       const ops: EditOperation[] = [
         {
