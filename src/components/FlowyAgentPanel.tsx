@@ -38,6 +38,7 @@ import {
   LayoutGrid,
   Loader2,
   Minus,
+  PanelRightClose,
   Settings2,
   Sparkles,
   SquarePlus,
@@ -2107,6 +2108,7 @@ export function FlowyAgentPanel({
   );
 
   const setFlowyHistoryRailOpen = useWorkflowStore((s) => s.setFlowyHistoryRailOpen);
+  const setFlowyAgentOpen = useWorkflowStore((s) => s.setFlowyAgentOpen);
   const agentLogAnchorRef = useFlowyAgentLogAnchorRef();
   const threadsMenuRef = useRef<HTMLDivElement>(null);
   const [threadsMenuLayout, setThreadsMenuLayout] = useState<{
@@ -2397,18 +2399,47 @@ export function FlowyAgentPanel({
             document.body
           )
         : null}
-      {isOpen ? (
-    <div
-      className="pointer-events-none fixed right-4 top-[4.5rem] z-40 flex w-[min(280px,calc(100vw-2rem))] flex-col gap-2 min-h-0 bottom-[calc(1rem+min(20vh,464px))]"
-    >
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Flowy AI chat"
-      data-testid="flowy-sidebar"
-      className="pointer-events-auto flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 pb-3 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-all duration-200"
-    >
-      <div className="h-5 shrink-0" aria-hidden />
+      <div
+        className={`fixed right-5 top-4 z-[60] flex shrink-0 flex-col overflow-hidden transition-[width,height,border-radius,background-color,border-color,box-shadow] duration-[320ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+          isOpen
+            ? "h-[calc(100dvh-2rem-min(20vh,464px))] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+            : "h-11 w-11 rounded-full border border-neutral-700 bg-background-transparent-black-default backdrop-blur-[16px]"
+        }`}
+      >
+        {!isOpen ? (
+          <button
+            type="button"
+            onClick={() => setFlowyAgentOpen(true)}
+            title="Flowy agent"
+            aria-label="Open Flowy agent"
+            className="flex h-full w-full shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-neutral-800 focus-visible:ring-2 focus-visible:ring-white/30"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neutral-100"
+              aria-hidden
+            >
+              <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" />
+              <path d="M20 14l.9 3.1L24 18l-3.1.9L20 22l-.9-3.1L16 18l3.1-.9L20 14z" />
+            </svg>
+          </button>
+        ) : (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Flowy AI chat"
+            data-testid="flowy-sidebar"
+            className="flowy-agent-shell-reveal pointer-events-auto flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden pb-3"
+          >
+      <div className="h-3 shrink-0" aria-hidden />
       <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] px-2 pb-2 pt-0">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
           <div className="h-1 w-4 shrink-0 rounded-full bg-white/25" aria-hidden />
@@ -2428,10 +2459,11 @@ export function FlowyAgentPanel({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
-            aria-label="Minimize chat"
+            className="rounded-xl p-2 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Collapse Flowy chat"
+            title="Collapse to button"
           >
-            <Minus className="size-4" />
+            <PanelRightClose className="size-4" strokeWidth={2} aria-hidden />
           </button>
         </div>
       </div>
@@ -2868,8 +2900,8 @@ export function FlowyAgentPanel({
         </div>
       </div>
     </div>
-    </div>
-      ) : null}
+        )}
+      </div>
 
       {/* Custom instructions modal */}
       {isSettingsOpen && (

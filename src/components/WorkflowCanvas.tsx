@@ -1796,34 +1796,7 @@ export function WorkflowCanvas() {
       {/* Edge toolbar */}
       <EdgeToolbar />
 
-      {/* Flowy open button */}
-      {!flowyAgentOpen && (
-        <button
-          type="button"
-          onClick={() => setFlowyAgentOpen(true)}
-          title="Flowy agent"
-          aria-label="Open Flowy agent"
-          className="fixed top-4 right-5 z-[60] inline-flex items-center justify-center h-11 w-11 rounded-full backdrop-blur-[16px] bg-background-transparent-black-default border border-neutral-700 hover:bg-neutral-800 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-neutral-100"
-          >
-            <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" />
-            <path d="M20 14l.9 3.1L24 18l-3.1.9L20 22l-.9-3.1L16 18l3.1-.9L20 14z" />
-          </svg>
-        </button>
-      )}
-
-      {/* Flowy agent panel */}
+      {/* Flowy agent panel (collapsed FAB + expanded chat share one morphing shell) */}
       <FlowyAgentPanel
         isOpen={flowyAgentOpen}
         onClose={() => setFlowyAgentOpen(false)}

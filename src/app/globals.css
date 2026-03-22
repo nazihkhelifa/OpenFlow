@@ -397,6 +397,29 @@ body {
   }
 }
 
+@keyframes flowyAgentShellReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.flowy-agent-shell-reveal {
+  animation: flowyAgentShellReveal 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flowy-agent-shell-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Canvas edge vignette while Flowy sends workflow context to the planner */
 @keyframes flowyCanvasReadEdgePulse {
   0%,
