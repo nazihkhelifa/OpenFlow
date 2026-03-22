@@ -35,20 +35,20 @@ export function GenerateWorkflowAIBanner({ onWorkflowSelected }: GenerateWorkflo
       <button
         type="button"
         onClick={() => setShowAIPrompt(true)}
-        className="relative cursor-pointer group h-[350px] w-full flex-shrink-0 overflow-hidden rounded-3xl block text-left"
+        className="group relative block h-[350px] w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl text-left"
       >
         <img
           src="/thumbnails-wf-ai.jpeg"
           alt=""
-          className="absolute inset-0 size-full object-cover scale-110 blur-2xl transition-transform duration-300 group-hover:scale-150"
+          className="absolute inset-0 size-full scale-110 object-cover blur-2xl transition-transform duration-300 group-hover:scale-[1.15]"
         />
-        <div className="absolute inset-0 bg-[#0f0f0f]/70" />
-        <div className="absolute inset-0 flex flex-col justify-center gap-4 p-14">
-          <h3 className="text-base font-semibold text-[#f7f7f7]">Generate workflow with AI</h3>
-          <p className="text-xs leading-relaxed text-[#c8c8c8] max-w-md">
-            Describe what you need and let Gemini build your workflow
+        <div className="absolute inset-0 bg-[#191a1f]/80" />
+        <div className="absolute inset-0 flex flex-col justify-center gap-4 p-10 sm:p-14">
+          <h3 className="text-lg font-semibold tracking-tight text-white">Welcome to Openflows</h3>
+          <p className="max-w-md text-xs leading-relaxed text-[#9aa0a6]">
+            Describe what you need and let AI help you start a workflow on the canvas.
           </p>
-          <span className="inline-flex items-center justify-center gap-2 h-8 px-4 text-xs font-medium rounded-full bg-[#f7f7f7] text-[#0d0d0d] w-fit hover:bg-[#e5e5e5] transition-colors">
+          <span className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-full bg-white px-5 text-xs font-medium text-[#191a1f] transition-colors hover:bg-[#e8eaed]">
             Generate with AI
           </span>
         </div>

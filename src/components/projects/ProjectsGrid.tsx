@@ -280,7 +280,7 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
         {[...Array(8)].map((_, i) => (
           <div
             key={i}
-            className="aspect-tv rounded-md bg-[#1c1c1c] animate-pulse"
+            className="aspect-tv animate-pulse rounded-xl border border-[#2e3038] bg-[#222328]"
           />
         ))}
       </div>
@@ -291,9 +291,9 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
     <div className="w-full space-y-4">
       {useFileSystem && (
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-neutral-300">
+          <div className="flex items-center gap-2 text-sm text-[#9aa0a6]">
             {activeFolderFilter === "all" ? (
-              <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-white">
+              <span className="rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs font-medium text-white">
                 All projects
               </span>
             ) : activeFolderFilter === "unassigned" ? (
@@ -301,11 +301,11 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
                 <button
                   type="button"
                   onClick={() => setActiveFolderFilter("all")}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-neutral-200 hover:bg-white/10"
+                  className="rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs text-[#e8eaed] hover:bg-[#2d2f36]"
                 >
                   Back
                 </button>
-                <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-white">
+                <span className="rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs font-medium text-white">
                   No folder
                 </span>
               </>
@@ -314,22 +314,22 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
                 <button
                   type="button"
                   onClick={() => setActiveFolderFilter("all")}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-neutral-200 hover:bg-white/10"
+                  className="rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs text-[#e8eaed] hover:bg-[#2d2f36]"
                 >
                   Back
                 </button>
-                <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-white">
+                <span className="rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs font-medium text-white">
                   {organizerFolders.find((f) => f.id === activeFolderFilter)?.name ?? "Folder"}
                 </span>
               </>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-1">
+            <div className="inline-flex items-center rounded-full border border-[#2e3038] bg-[#25262c] p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
-                className={`rounded-md p-1.5 ${viewMode === "grid" ? "bg-white/10 text-white" : "text-neutral-300 hover:bg-white/5"}`}
+                className={`rounded-full p-1.5 ${viewMode === "grid" ? "bg-[#3c3e45] text-white" : "text-[#9aa0a6] hover:bg-white/[0.06]"}`}
                 title="Grid view"
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -337,7 +337,7 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
               <button
                 type="button"
                 onClick={() => setViewMode("list")}
-                className={`rounded-md p-1.5 ${viewMode === "list" ? "bg-white/10 text-white" : "text-neutral-300 hover:bg-white/5"}`}
+                className={`rounded-full p-1.5 ${viewMode === "list" ? "bg-[#3c3e45] text-white" : "text-[#9aa0a6] hover:bg-white/[0.06]"}`}
                 title="List view"
               >
                 <List className="h-4 w-4" />
@@ -346,7 +346,7 @@ export function ProjectsGrid({ searchQuery = "" }: { searchQuery?: string }) {
             <button
               type="button"
               onClick={() => setShowCreateFolderModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-full border border-[#2e3038] bg-[#25262c] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2d2f36]"
             >
               <FolderPlus className="h-4 w-4" />
               New folder

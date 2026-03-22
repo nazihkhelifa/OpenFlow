@@ -110,7 +110,7 @@ export function ProjectCard({
 
   if (compact) {
     return (
-      <div className="relative flex items-center justify-between px-4 py-3 hover:bg-white/5">
+      <div className="relative flex items-center justify-between rounded-lg border border-transparent px-4 py-3 hover:border-[#2e3038] hover:bg-[#25262c]/80">
         <Link href={`/projects/${project.id}`} className="min-w-0 flex-1">
           <p className="truncate text-sm text-white">{name}</p>
           {subtitle && <p className="mt-0.5 text-xs text-white/70">{subtitle}</p>}
@@ -143,11 +143,11 @@ export function ProjectCard({
 
   return (
     <div
-      className={`relative cursor-pointer group rounded-md overflow-visible bg-[#1c1c1c] ${aspectClass}`}
+      className={`group relative cursor-pointer overflow-visible rounded-xl border border-[#2e3038] bg-[#222328] transition-colors hover:border-[#3c3d45] ${aspectClass}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/projects/${project.id}`} className="block h-full w-full overflow-hidden rounded-md">
+      <Link href={`/projects/${project.id}`} className="block h-full w-full overflow-hidden rounded-[10px]">
         {cardVisual}
       </Link>
 

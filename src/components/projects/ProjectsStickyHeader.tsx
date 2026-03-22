@@ -26,13 +26,13 @@ export function ProjectsStickyHeader({
     "disabled:cursor-not-allowed disabled:opacity-50",
     "aria-pressed:cursor-default aria-pressed:opacity-100",
     "outline-none focus:outline-none focus-visible:outline-none active:outline-none",
-    "h-8 px-4 text-xs rounded-full w-full whitespace-nowrap",
+    "h-9 px-4 text-xs rounded-full w-full whitespace-nowrap",
   ].join(" ");
 
   const ghostClasses =
-    "bg-transparent text-[#c8c8c8] hover:bg-[#ffffff1a] active:bg-[#ffffff26]";
+    "bg-transparent text-[#9aa0a6] hover:bg-white/[0.06] active:bg-white/[0.08]";
   const secondaryClasses =
-    "bg-[#f7f7f7] text-[#0d0d0d] aria-pressed:bg-[#d8d8d8] hover:bg-[#e5e5e5] active:bg-[#d8d8d8]";
+    "bg-[#303136] text-white shadow-none aria-pressed:bg-[#3c3e45] hover:bg-[#383a42] active:bg-[#3c3e45]";
 
   return (
     <div className="mx-auto">
@@ -62,7 +62,7 @@ export function ProjectsStickyHeader({
           <div className="flex items-center gap-2 flex-1 justify-end">
             <div className="relative flex-1 max-w-xs">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-[#b1b1b1] pointer-events-none"
+                className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#80868b]"
                 aria-hidden
               />
               <input
@@ -71,14 +71,14 @@ export function ProjectsStickyHeader({
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
                 data-cy="boards-search-input"
-                className="w-full h-8 pl-8 pr-8 py-2 rounded-full border border-[#ffffff1a] bg-transparent text-[#f7f7f7] placeholder:text-[#b1b1b1] text-xs focus:outline-none block"
+                className="block h-9 w-full rounded-full border border-[#3c3d45] bg-[#25262c] py-2 pl-9 pr-3 text-xs text-white placeholder:text-[#80868b] focus:border-[#5f6368] focus:outline-none"
               />
             </div>
             {onNewProjectClick && (
               <button
                 type="button"
                 onClick={onNewProjectClick}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-colors shrink-0"
+                className="flex h-9 shrink-0 items-center gap-2 rounded-full bg-white px-4 text-xs font-medium text-[#191a1f] transition-colors hover:bg-[#e8eaed] active:bg-[#dadce0]"
               >
                 <Plus className="h-4 w-4" />
                 New Project

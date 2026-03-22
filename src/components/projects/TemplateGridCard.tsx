@@ -46,27 +46,27 @@ export function TemplateGridCard({
         tabIndex={0}
         onClick={() => !disabled && !isLoading && onUse()}
         onKeyDown={(e) => e.key === "Enter" && !disabled && !isLoading && onUse()}
-        className="flex-shrink-0 w-[340px] group relative cursor-pointer transition-all duration-200 rounded-2xl overflow-hidden"
+        className="group relative w-[340px] flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-[#2e3038] transition-all duration-200 hover:border-[#3c3d45]"
       >
         <div className="@container relative aspect-[3] w-full overflow-hidden rounded-2xl">
           <img
             src={effectiveSrc}
             alt={name}
             onError={() => setImgError(true)}
-            className="absolute inset-0 size-full scale-110 object-cover blur-2xl transition-transform duration-300 group-hover:scale-150"
+            className="absolute inset-0 size-full scale-110 object-cover blur-2xl transition-transform duration-300 group-hover:scale-[1.12]"
           />
-          <div className="absolute inset-0 bg-[#0f0f0f]/70" />
+          <div className="absolute inset-0 bg-[#191a1f]/75" />
           <div className="relative z-10 flex h-full">
             <div className="aspect-square h-full flex-shrink-0 overflow-hidden">
               <img
                 src={effectiveSrc}
                 alt={name}
                 onError={() => setImgError(true)}
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
             </div>
             <div className="flex flex-1 items-center px-3 md:px-4 lg:px-6">
-              <h2 className="text-[#c8c8c8] line-clamp-3 text-pretty font-semibold antialiased text-sm md:text-base lg:text-lg">
+              <h2 className="line-clamp-3 text-pretty text-sm font-semibold tracking-tight text-white/95 antialiased md:text-base lg:text-lg">
                 {name}
               </h2>
             </div>
@@ -83,7 +83,7 @@ export function TemplateGridCard({
         tabIndex={0}
         onClick={() => !disabled && !isLoading && onUse()}
         onKeyDown={(e) => e.key === "Enter" && !disabled && !isLoading && onUse()}
-        className="aspect-tv relative cursor-pointer overflow-hidden rounded-md"
+        className="aspect-tv relative cursor-pointer overflow-hidden rounded-xl border border-[#2e3038] transition-colors hover:border-[#3c3d45]"
       >
         <img
           src={effectiveSrc}

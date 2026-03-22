@@ -280,15 +280,11 @@ export function Header() {
         </div>
 
         {/* Project name (display only) — settings live under the logo menu */}
-        <div className="flex min-w-0 max-w-[320px] flex-1 items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)]/90 p-1.5 pr-2 shadow-sm backdrop-blur-sm">
-            <div
-              className="flex min-w-0 flex-1 select-none truncate px-3 py-1 text-sm text-neutral-200"
-              title={projectDisplayName}
-            >
-              {projectDisplayName}
-            </div>
-          </div>
+        <div
+          className="min-w-0 max-w-[320px] flex-1 truncate px-1 text-sm font-medium tracking-tight text-neutral-100 select-none"
+          title={projectDisplayName}
+        >
+          {projectDisplayName}
         </div>
       </div>
 

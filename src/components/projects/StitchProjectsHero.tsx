@@ -1,0 +1,172 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { ArrowUp, Loader2, Plus } from "lucide-react";
+import type { WorkflowFile } from "@/store/workflowStore";
+import { getQuickstartDefaults, getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
+import type { LLMModelType, LLMProvider } from "@/types";
+
+const SUGGESTIONS = [
+  "Product shots with consistent lighting from one reference image",
+  "Social ad: image → short video with captions",
+  "Background swap and color variants for e‑commerce",
+  "Portrait retouch and style transfer pipeline",
+];
+
+type StitchProjectsHeroProps = {
+  onWorkflowGenerated: (workflow: WorkflowFile) => void;
+};
+
+export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroProps) {
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"assist" | "describe">("assist");
+
+  const quickstartDefaults = getQuickstartDefaults();
+  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
+  const defaultModels: Record<LLMProvider, LLMModelType> = {
+    google: "gemini-3-flash-preview",
+    openai: "gpt-4.1-mini",
+    anthropic: "claude-sonnet-4.5",
+  };
+  const model: LLMModelType = quickstartDefaults?.model ?? defaultModels[provider];
+  const systemInstructionExtra = getQuickstartSystemInstructionExtra();
+
+  const submit = useCallback(async () => {
+    const text = prompt.trim();
+    if (text.length < 3) {
+      setError("Describe your workflow in at least a few words.");
+      return;
+    }
+    setError(null);
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/quickstart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: text,
+          contentLevel: "full",
+          provider,
+          model,
+          systemInstructionExtra,
+        }),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || "Failed to generate workflow");
+      if (result.workflow) onWorkflowGenerated(result.workflow as WorkflowFile);
+      setPrompt("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [prompt, provider, model, systemInstructionExtra, onWorkflowGenerated]);
+
+  return (
+    <div className="flex w-full max-w-2xl flex-col gap-8">
+      <div>
+        <h1 className="text-[2rem] font-normal leading-tight tracking-tight text-stitch-fg sm:text-[2.25rem]">
+          Welcome to Openflows
+        </h1>
+        <p className="mt-2 text-sm text-stitch-muted">
+          What workflow shall we build on your canvas?
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-secondary bg-surface-container p-4 shadow-none backdrop-blur-glass">
+        <textarea
+          value={prompt}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!isGenerating) void submit();
+            }
+          }}
+          disabled={isGenerating}
+          rows={5}
+          placeholder="Describe nodes, inputs, and what you want to generate or edit…"
+          className="min-h-[120px] w-full resize-none border-0 bg-transparent text-sm text-stitch-fg outline-none placeholder:text-stitch-muted disabled:opacity-50"
+        />
+
+        {error && (
+          <p className="mt-2 text-xs text-red-400" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="flex size-9 items-center justify-center rounded-full text-stitch-muted transition-colors hover:bg-state-hover hover:text-stitch-fg"
+              title="Add context (coming soon)"
+              aria-label="Add"
+            >
+              <Plus className="size-5" strokeWidth={2} />
+            </button>
+            <div className="inline-flex rounded-full border border-secondary bg-surface-container p-0.5 backdrop-blur-[40px]">
+              <button
+                type="button"
+                onClick={() => setMode("assist")}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === "assist"
+                    ? "bg-state-active text-stitch-fg"
+                    : "text-stitch-muted hover:bg-state-hover hover:text-stitch-fg"
+                }`}
+              >
+                Assist
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("describe")}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === "describe"
+                    ? "bg-state-active text-stitch-fg"
+                    : "text-stitch-muted hover:bg-state-hover hover:text-stitch-fg"
+                }`}
+              >
+                Describe
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={isGenerating || prompt.trim().length < 3}
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-stitch-fg text-neutral-950 transition-colors hover:bg-[#e8eaed] disabled:cursor-not-allowed disabled:opacity-35"
+            title="Generate workflow"
+            aria-label="Generate workflow"
+          >
+            {isGenerating ? (
+              <Loader2 className="size-5 animate-spin" aria-hidden />
+            ) : (
+              <ArrowUp className="size-5" strokeWidth={2} aria-hidden />
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {SUGGESTIONS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => {
+              setPrompt(s);
+              setError(null);
+            }}
+            className="max-w-full rounded-full border border-secondary bg-surface-container px-3 py-1.5 text-left text-xs font-medium text-stitch-fg backdrop-blur-glass transition-colors hover:bg-state-hover"
+          >
+            <span className="line-clamp-2">{s}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
