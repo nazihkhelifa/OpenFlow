@@ -216,6 +216,8 @@ export function WorkflowCanvas() {
   const [dropType, setDropType] = useState<"image" | "audio" | "workflow" | "node" | null>(null);
   const [connectionDrop, setConnectionDrop] = useState<ConnectionDropState | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  /** True while Flowy is sending canvas/workflow context to the planner (edge vignette on canvas). */
+  const [isFlowyCanvasReading, setIsFlowyCanvasReading] = useState(false);
   const [isBuildingWorkflow, setIsBuildingWorkflow] = useState(false);
   const [showNewProjectSetup, setShowNewProjectSetup] = useState(false);
   const [expandingNode, setExpandingNode] = useState<{ id: string; type: string } | null>(null);
@@ -1745,6 +1747,16 @@ export function WorkflowCanvas() {
         </ViewportPortal>
       </ReactFlow>
 
+      {/* Inward edge glow while Flowy reads/sends canvas state to the agent */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-[25] transition-opacity duration-500 ease-out ${
+          isFlowyCanvasReading ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden
+      >
+        <div className="flowy-canvas-reading-overlay-inner absolute inset-0" />
+      </div>
+
       {/* Right-click context menu */}
       {contextMenu && (
         <CanvasContextMenu
@@ -1807,6 +1819,7 @@ export function WorkflowCanvas() {
         onStopWorkflow={stopWorkflow}
         workflowState={chatWorkflowState}
         selectedNodeIds={selectedNodeIds}
+        onCanvasReadingChange={setIsFlowyCanvasReading}
       />
 
       {/* Control panel - renders on right side when a configurable node is selected */}

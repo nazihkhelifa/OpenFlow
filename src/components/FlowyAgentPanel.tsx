@@ -592,6 +592,8 @@ export function FlowyAgentPanel({
   onStopWorkflow,
   workflowState,
   selectedNodeIds,
+  /** Fired when Flowy is building/sending canvas context to the planner (for canvas edge glow, etc.). */
+  onCanvasReadingChange,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -601,6 +603,7 @@ export function FlowyAgentPanel({
   onStopWorkflow?: () => void;
   workflowState?: WorkflowState;
   selectedNodeIds?: string[];
+  onCanvasReadingChange?: (active: boolean) => void;
 }) {
   const { screenToFlowPosition, setCenter, getViewport } = useReactFlow();
   const workflowId = useWorkflowStore((s) => s.workflowId);
@@ -676,6 +679,9 @@ export function FlowyAgentPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isPlanning, setIsPlanning] = useState(false);
+  useEffect(() => {
+    onCanvasReadingChange?.(isPlanning);
+  }, [isPlanning, onCanvasReadingChange]);
   const [isRunning, setIsRunning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
