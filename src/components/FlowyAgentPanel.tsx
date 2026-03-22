@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import gsap from "gsap";
 import type { EditOperation } from "@/lib/chat/editOperations";
 import { executeOperationWithMouse, type OrchestratorDeps } from "@/lib/flowy/agentCanvasOrchestrator";
 import { planEdgeMatchesStoreEdge } from "@/lib/workflow/canvasConnectionRules";
@@ -678,6 +679,19 @@ function AppliedPlanWidget({ plan }: { plan: AppliedPlanRecord }) {
       )}
     </div>
   );
+}
+
+const FLOWY_MORPH_COLLAPSED_PX = 44;
+const FLOWY_MORPH_RADIUS_COLLAPSED = FLOWY_MORPH_COLLAPSED_PX / 2;
+const FLOWY_MORPH_RADIUS_EXPANDED = 16;
+
+function getFlowyMorphExpandedSize(): { w: number; h: number } {
+  if (typeof window === "undefined") return { w: 280, h: 560 };
+  const w = Math.min(280, Math.max(FLOWY_MORPH_COLLAPSED_PX, window.innerWidth - 32));
+  const vh = window.innerHeight;
+  const minGap = Math.min(vh * 0.2, 464);
+  const h = Math.max(160, vh - 32 - minGap);
+  return { w, h };
 }
 
 export function FlowyAgentPanel({
@@ -2109,6 +2123,167 @@ export function FlowyAgentPanel({
 
   const setFlowyHistoryRailOpen = useWorkflowStore((s) => s.setFlowyHistoryRailOpen);
   const setFlowyAgentOpen = useWorkflowStore((s) => s.setFlowyAgentOpen);
+
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setPrefersReducedMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const flowyMorphShellRef = useRef<HTMLDivElement>(null);
+  const flowyMorphPanelInnerRef = useRef<HTMLDivElement>(null);
+  const flowyMorphCloseRunningRef = useRef(false);
+  const prevIsOpenForMorphRef = useRef<boolean | undefined>(undefined);
+
+  const runFlowyMorphOpen = useCallback(() => {
+    const shell = flowyMorphShellRef.current;
+    const inner = flowyMorphPanelInnerRef.current;
+    if (!shell) return;
+    const { w, h } = getFlowyMorphExpandedSize();
+    gsap.killTweensOf(shell);
+    if (inner) gsap.killTweensOf(inner);
+
+    if (inner) {
+      gsap.set(inner, {
+        autoAlpha: 0,
+        scale: 0.86,
+        y: 32,
+        transformOrigin: "100% 0%",
+      });
+    }
+
+    const baseShadow = "0 8px 32px -14px rgba(0,0,0,0.55)";
+    gsap.set(shell, {
+      width: FLOWY_MORPH_COLLAPSED_PX,
+      height: FLOWY_MORPH_COLLAPSED_PX,
+      borderRadius: FLOWY_MORPH_RADIUS_COLLAPSED,
+      boxShadow: baseShadow,
+    });
+
+    const shellTl = gsap.timeline({ defaults: { overwrite: "auto" } });
+    shellTl.to(
+      shell,
+      {
+        width: w,
+        height: h,
+        borderRadius: FLOWY_MORPH_RADIUS_EXPANDED,
+        duration: 0.64,
+        ease: "back.out(1.12)",
+      },
+      0
+    );
+    const glowShadow =
+      "0 12px 44px -10px rgba(0,0,0,0.48), 0 0 44px -4px rgba(139, 92, 246, 0.34)";
+    shellTl.to(shell, { boxShadow: glowShadow, duration: 0.26, ease: "power2.out" }, 0.12);
+    shellTl.to(shell, { boxShadow: baseShadow, duration: 0.42, ease: "power3.out" }, 0.22);
+
+    if (inner) {
+      gsap.fromTo(
+        inner,
+        { autoAlpha: 0, scale: 0.86, y: 32, transformOrigin: "100% 0%" },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.58,
+          ease: "power3.out",
+          delay: 0.08,
+          overwrite: "auto",
+          onComplete: () => {
+            gsap.set(inner, { clearProps: "transform" });
+          },
+        }
+      );
+    }
+  }, []);
+
+  const handleFlowyMorphClose = useCallback(() => {
+    if (flowyMorphCloseRunningRef.current) return;
+    if (prefersReducedMotion) {
+      onClose();
+      return;
+    }
+    const shell = flowyMorphShellRef.current;
+    const inner = flowyMorphPanelInnerRef.current;
+    if (!shell) {
+      onClose();
+      return;
+    }
+    flowyMorphCloseRunningRef.current = true;
+    gsap.killTweensOf(shell);
+    if (inner) gsap.killTweensOf(inner);
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        gsap.set(shell, { clearProps: "width,height,borderRadius,boxShadow" });
+        flowyMorphCloseRunningRef.current = false;
+        onClose();
+      },
+    });
+
+    if (inner) {
+      tl.to(
+        inner,
+        {
+          autoAlpha: 0,
+          scale: 0.9,
+          y: 32,
+          transformOrigin: "100% 0%",
+          duration: 0.32,
+          ease: "power3.in",
+        },
+        0
+      );
+    }
+    tl.to(
+      shell,
+      {
+        width: FLOWY_MORPH_COLLAPSED_PX,
+        height: FLOWY_MORPH_COLLAPSED_PX,
+        borderRadius: FLOWY_MORPH_RADIUS_COLLAPSED,
+        boxShadow: "0 4px 20px -12px rgba(0,0,0,0.45)",
+        duration: 0.54,
+        ease: "power4.inOut",
+      },
+      inner ? 0.06 : 0
+    );
+  }, [onClose, prefersReducedMotion]);
+
+  useLayoutEffect(() => {
+    const wasOpen = prevIsOpenForMorphRef.current;
+    prevIsOpenForMorphRef.current = isOpen;
+    if (!isOpen) return;
+    if (prefersReducedMotion || flowyMorphCloseRunningRef.current) return;
+    if (wasOpen === true) return;
+    runFlowyMorphOpen();
+  }, [isOpen, prefersReducedMotion, runFlowyMorphOpen]);
+
+  useEffect(() => {
+    if (!isOpen || prefersReducedMotion) return;
+    const shell = flowyMorphShellRef.current;
+    const onResize = () => {
+      if (!shell || flowyMorphCloseRunningRef.current) return;
+      const { w, h } = getFlowyMorphExpandedSize();
+      gsap.to(shell, { width: w, height: h, duration: 0.22, ease: "power2.out", overwrite: "auto" });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [isOpen, prefersReducedMotion]);
+
+  useLayoutEffect(() => {
+    return () => {
+      const shell = flowyMorphShellRef.current;
+      const inner = flowyMorphPanelInnerRef.current;
+      if (shell) gsap.killTweensOf(shell);
+      if (inner) gsap.killTweensOf(inner);
+    };
+  }, []);
+
   const agentLogAnchorRef = useFlowyAgentLogAnchorRef();
   const threadsMenuRef = useRef<HTMLDivElement>(null);
   const [threadsMenuLayout, setThreadsMenuLayout] = useState<{
@@ -2400,9 +2575,12 @@ export function FlowyAgentPanel({
           )
         : null}
       <div
-        className={`fixed right-5 top-4 z-[60] flex shrink-0 origin-top-right flex-col overflow-hidden transition-[width,height,border-radius,background-color,border-color,box-shadow] duration-[460ms] ease-[cubic-bezier(0.22,1.12,0.36,1)] motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:transition-none ${
+        ref={flowyMorphShellRef}
+        className={`fixed right-5 top-4 z-[60] flex shrink-0 origin-top-right flex-col overflow-hidden ${
           isOpen
-            ? `flowy-agent-morph-open-glow h-[calc(100dvh-2rem-min(20vh,464px))] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl`
+            ? prefersReducedMotion
+              ? "h-[calc(100dvh-2rem-min(20vh,464px))] w-[min(280px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+              : "min-h-11 min-w-11 max-w-[min(280px,calc(100vw-2rem))] rounded-2xl border border-white/[0.14] bg-[rgb(22,23,24)]/95 shadow-[0_8px_32px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl"
             : "h-11 w-11 rounded-full border border-neutral-700 bg-background-transparent-black-default backdrop-blur-[16px]"
         }`}
       >
@@ -2433,13 +2611,14 @@ export function FlowyAgentPanel({
           </button>
         ) : (
           <div
+            ref={flowyMorphPanelInnerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Flowy AI chat"
             data-testid="flowy-sidebar"
             className="pointer-events-auto flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden pb-3"
           >
-      <div className="flowy-agent-shell-header-in flex shrink-0 flex-col">
+      <div className="flex shrink-0 flex-col">
         <div className="h-3 shrink-0" aria-hidden />
         <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] px-2 pb-2 pt-0">
           <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
@@ -2459,7 +2638,7 @@ export function FlowyAgentPanel({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleFlowyMorphClose}
               className="rounded-xl p-2 text-neutral-300 transition-[transform,background-color,color] duration-200 hover:bg-white/10 hover:text-white active:scale-95 motion-reduce:active:scale-100"
               aria-label="Collapse Flowy chat"
               title="Collapse to button"
@@ -2470,7 +2649,7 @@ export function FlowyAgentPanel({
         </div>
       </div>
 
-      <div className="flowy-agent-shell-body-in relative -mb-6 flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="relative -mb-6 flex min-h-0 w-full flex-1 flex-col overflow-hidden">
         <div
           className="flowy-chat-scrollbar flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden pb-12 [scrollbar-width:thin]"
           onWheelCapture={(e) => e.stopPropagation()}
@@ -2756,7 +2935,7 @@ export function FlowyAgentPanel({
 
       <div
         data-testid="flowy-sidebar-footer"
-        className="flowy-agent-shell-footer-in relative z-10 mt-auto w-full shrink-0 select-text border-t border-white/10"
+        className="relative z-10 mt-auto w-full shrink-0 select-text border-t border-white/10"
         style={{ background: "rgb(22 23 24 / 0.98)" }}
       >
         <div

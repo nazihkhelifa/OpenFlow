@@ -397,82 +397,7 @@ body {
   }
 }
 
-/* Flowy agent morph panel — layered open motion */
-@keyframes flowyAgentMorphGlow {
-  0% {
-    box-shadow:
-      0 8px 32px -14px rgba(0, 0, 0, 0.55),
-      0 0 0 0 rgba(139, 92, 246, 0.45),
-      0 0 24px -8px rgba(167, 139, 250, 0.35);
-  }
-  45% {
-    box-shadow:
-      0 14px 44px -12px rgba(0, 0, 0, 0.45),
-      0 0 0 1px rgba(167, 139, 250, 0.25),
-      0 0 40px -4px rgba(139, 92, 246, 0.3);
-  }
-  100% {
-    box-shadow: 0 8px 32px -14px rgba(0, 0, 0, 0.55);
-  }
-}
-
-.flowy-agent-morph-open-glow {
-  animation: flowyAgentMorphGlow 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes flowyAgentShellHeaderIn {
-  0% {
-    opacity: 0;
-    transform: translateX(18px) scale(0.98);
-  }
-  70% {
-    opacity: 1;
-    transform: translateX(-2px) scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-.flowy-agent-shell-header-in {
-  animation: flowyAgentShellHeaderIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
-}
-
-@keyframes flowyAgentShellBodyIn {
-  0% {
-    opacity: 0;
-    transform: translateY(14px) scale(0.99);
-  }
-  65% {
-    opacity: 1;
-    transform: translateY(-3px) scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.flowy-agent-shell-body-in {
-  animation: flowyAgentShellBodyIn 0.55s cubic-bezier(0.2, 1.1, 0.36, 1) 0.12s both;
-}
-
-@keyframes flowyAgentShellFooterIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.flowy-agent-shell-footer-in {
-  animation: flowyAgentShellFooterIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-}
-
+/* Flowy agent FAB (collapsed) — subtle idle pulse */
 @keyframes flowyAgentFabSoftPulse {
   0%,
   100% {
@@ -488,18 +413,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flowy-agent-morph-open-glow {
-    animation: none;
-  }
-
-  .flowy-agent-shell-header-in,
-  .flowy-agent-shell-body-in,
-  .flowy-agent-shell-footer-in {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-
   .flowy-agent-fab-icon {
     animation: none;
   }
