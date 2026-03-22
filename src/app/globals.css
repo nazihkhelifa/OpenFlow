@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas-bg: #0f0f0f;
+  --color-canvas-bg: #000000;
 }
 
 :root {
-  --background: #0f0f0f;
+  --background: #000000;
   --foreground: #fafafa;
   --background-transparent-black-default: #202020e6;
   --color-greyscale-300: #c4c4c4;
