@@ -30,8 +30,6 @@ type PlanRequest = {
   stageIndex?: number;
   /** Carried decomposition stages from a prior response. */
   decompositionStages?: Array<Record<string, unknown>>;
-  /** When true, run the quality checker after planning. */
-  runQualityCheck?: boolean;
   enforceCanvasControl?: boolean;
   requireCautionApproval?: boolean;
   /** Client-built Openflow UI snapshot text for planner context (refs for uiCommands). */

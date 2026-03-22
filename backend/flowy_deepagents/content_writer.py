@@ -38,7 +38,6 @@ _STAGE_META: Dict[str, Dict[str, str]] = {
     "subagent_builder": {"stageId": "apply_canvas_ops", "stageTitle": "Builder stage", "source": "builder"},
     "planning": {"stageId": "apply_canvas_ops", "stageTitle": "Generate operations", "source": "builder"},
     "retrying": {"stageId": "apply_canvas_ops", "stageTitle": "Retry operations", "source": "builder"},
-    "quality_check": {"stageId": "quality_check", "stageTitle": "Quality check", "source": "planner"},
 }
 
 
@@ -198,15 +197,6 @@ class GoalDecompositionModel(BaseModel):
     estimatedComplexity: Literal["simple", "moderate", "complex"] = "simple"
 
 
-class QualityCheckModel(BaseModel):
-    verdict: Literal["accept", "refine", "regenerate", "error_recovery"] = "accept"
-    confidence: float = 0.8
-    assessment: str = ""
-    issues: List[str] = Field(default_factory=list)
-    refinementSuggestion: Optional[str] = None
-    nextAction: Optional[str] = None
-
-
 def _normalize_chat_history(raw: Any) -> List[Dict[str, str]]:
     if not isinstance(raw, list):
         return []
@@ -352,69 +342,6 @@ def _revise_decomposition(
             return GoalDecompositionModel(**data)
     except Exception:
         pass
-    return None
-
-
-def _check_quality(
-    model: Any,
-    user_goal: str,
-    workflow_state: Dict[str, Any],
-    selected_node_ids: List[str],
-    attachments: Optional[List[Dict[str, str]]] = None,
-    stage_instruction: Optional[str] = None,
-) -> Optional[QualityCheckModel]:
-    """
-    Post-execution quality checker. Inspects execution digest and decides
-    whether to accept, refine, or regenerate outputs.
-    """
-    checker_md = _read_text_file("QUALITY_CHECKER.md").strip()
-    if not checker_md:
-        return None
-
-    brief = _build_workflow_brief_for_router(workflow_state, selected_node_ids)
-    try:
-        hops = int(os.environ.get("FLOWY_CONTEXT_NEIGHBOR_HOPS", "2"))
-    except ValueError:
-        hops = 2
-    try:
-        focus_max = int(os.environ.get("FLOWY_CONTEXT_FOCUS_MAX_NODES", "72"))
-    except ValueError:
-        focus_max = 72
-
-    digest = build_execution_digest_for_llm(
-        workflow_state,
-        selected_node_ids=selected_node_ids,
-        neighbor_hops=hops,
-        focus_max_nodes=focus_max,
-    )
-
-    user_content = (
-        f"UserGoal:\n{user_goal}\n\n"
-        + (f"StageInstruction:\n{stage_instruction}\n\n" if stage_instruction else "")
-        + f"ExecutionDigest (JSON):\n{json.dumps(digest, ensure_ascii=False, indent=2)}\n\n"
-        + f"WorkflowBrief (JSON):\n{json.dumps(brief, ensure_ascii=False)}\n\n"
-        + "Return ONLY the JSON object."
-    )
-    lc_messages: List[Any] = [SystemMessage(content=checker_md)]
-    lc_messages.append(_build_human_message_with_attachments(user_content, attachments or []))
-
-    try:
-        structured = model.with_structured_output(QualityCheckModel)
-        result = structured.invoke(lc_messages)
-        if isinstance(result, QualityCheckModel):
-            return result
-    except Exception:
-        pass
-
-    try:
-        resp = model.invoke(lc_messages, response_format={"type": "json_object"})
-        raw = str(getattr(resp, "content", "") or "")
-        data = json.loads(raw) if raw.strip() else {}
-        if isinstance(data, dict) and data.get("verdict"):
-            return QualityCheckModel(**data)
-    except Exception:
-        pass
-
     return None
 
 
@@ -1977,7 +1904,6 @@ def main() -> None:
         agent_mode = str(payload.get("agentMode") or "assist").strip().lower()
         if agent_mode not in {"plan", "assist"}:
             agent_mode = "assist"
-        run_quality_check = bool(payload.get("runQualityCheck"))
         enforce_canvas_control = _coerce_bool(
             payload.get("enforceCanvasControl"),
             default=_coerce_bool(os.environ.get("FLOWY_ENFORCE_CANVAS_CONTROL"), default=True),
@@ -2225,7 +2151,6 @@ def main() -> None:
             "selectedNodeCount": len(selected_node_ids),
             "attachmentsCount": len(attachments),
             "validationOk": bool(ok),
-            "qualityCheckRequested": bool(run_quality_check),
         }
         out["intentSignals"] = intent_signals.model_dump()
         if not ok:
@@ -2240,19 +2165,6 @@ def main() -> None:
                 "estimatedComplexity": decomposition.estimatedComplexity,
                 "isLastStage": stage_index >= len(decomposition.stages) - 1,
             }
-
-        if run_quality_check and ok:
-            _emit_progress("quality_check", "evaluating outputs")
-            qc = _check_quality(
-                router_model,
-                message,
-                workflow_state,
-                selected_node_ids,
-                attachments=attachments,
-                stage_instruction=current_stage_instruction,
-            )
-            if qc:
-                out["qualityCheck"] = qc.model_dump()
 
         sys.stdout.write(json.dumps(out))
     except Exception as e:

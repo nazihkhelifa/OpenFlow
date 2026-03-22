@@ -128,15 +128,6 @@ type PlannerStageEvent = {
   source?: string;
 };
 
-type QualityCheck = {
-  verdict: "accept" | "refine" | "regenerate" | "error_recovery";
-  confidence: number;
-  assessment: string;
-  issues: string[];
-  refinementSuggestion?: string | null;
-  nextAction?: string | null;
-};
-
 type FlowyPlanResponse = {
   assistantText: string;
   operations: EditOperation[];
@@ -163,7 +154,6 @@ type FlowyPlanResponse = {
     selectedNodeCount?: number;
     attachmentsCount?: number;
     validationOk?: boolean;
-    qualityCheckRequested?: boolean;
   };
   /** LLM parser output: preferred EditOperation types (ordered) + execution bias. */
   intentSignals?: {
@@ -195,7 +185,6 @@ type FlowyPlanResponse = {
     reason?: string;
   };
   decomposition?: DecompositionInfo;
-  qualityCheck?: QualityCheck;
   /** Raw planner output; parsed client-side with parseOpenflowUiCommandsFromJson */
   uiCommands?: unknown[];
 };
@@ -1073,7 +1062,6 @@ export function FlowyAgentPanel({
         suppressUserEcho?: boolean;
         stageIndex?: number;
         decompositionStages?: DecompositionStage[];
-        runQualityCheck?: boolean;
         /** When true (composer only): may fork a new session so each send is a new “couple”; optional prior-thread context. */
         forkNewThread?: boolean;
         contextSessionId?: string | null;
@@ -1213,7 +1201,6 @@ export function FlowyAgentPanel({
         };
         if (opts?.stageIndex !== undefined) body.stageIndex = opts.stageIndex;
         if (opts?.decompositionStages) body.decompositionStages = opts.decompositionStages;
-        if (opts?.runQualityCheck) body.runQualityCheck = true;
 
         const useStreaming = process.env.NEXT_PUBLIC_FLOWY_STREAM_PLAN === "1";
         const parseSseLines = (buffer: string) => {
@@ -1477,12 +1464,6 @@ export function FlowyAgentPanel({
           mode === "plan" && (ops.length > 0 || uiParsedForPlan.length > 0);
 
         let displayText = assistantText.trimEnd();
-        if (data.qualityCheck && !hasApplyTimeline) {
-          const qc = data.qualityCheck;
-          const verdictEmoji = qc.verdict === "accept" ? "✓" : qc.verdict === "refine" ? "↻" : qc.verdict === "error_recovery" ? "⚠" : "↺";
-          const qcSummary = `\n\n**Quality check** ${verdictEmoji} ${qc.verdict} (${Math.round(qc.confidence * 100)}%): ${qc.assessment}`;
-          displayText += qcSummary;
-        }
         if (data.safetyPolicy?.riskSummary && !hasApplyTimeline) {
           const rs = data.safetyPolicy.riskSummary;
           const safetySummary =
@@ -2848,7 +2829,7 @@ export function FlowyAgentPanel({
                               `If the result looks good, summarize what was produced. ` +
                               `If there are errors or missing outputs, fix them. ` +
                               `If more stages are needed, plan the next one.`,
-                            { suppressUserEcho: true, runQualityCheck: true }
+                            { suppressUserEcho: true }
                           );
                         }
                       }}

@@ -23,7 +23,6 @@ type PlanRequest = {
   model?: string;
   stageIndex?: number;
   decompositionStages?: Array<Record<string, unknown>>;
-  runQualityCheck?: boolean;
   enforceCanvasControl?: boolean;
   requireCautionApproval?: boolean;
   expectedWorkflowHash?: string;
