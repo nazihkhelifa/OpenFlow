@@ -232,7 +232,7 @@ export function ProjectSetupModal({
         setExternalStorage(useExternalImageStorage);
       } else if (mode === "duplicate") {
         setName(workflowName ? `Copy of ${workflowName}` : "Copy of Untitled");
-        setDirectoryPath("");
+        setDirectoryPath(getDefaultProjectDirectory() || "");
         setLocalThumbnail(workflowThumbnail || null);
         setExternalStorage(useExternalImageStorage);
       } else {
@@ -932,7 +932,9 @@ export function ProjectSetupModal({
                 </button>
               </div>
               <p className="text-xs text-neutral-400 mt-1">
-                Save location for this project. When creating new, this is pre-filled from the default directory in General.
+                {mode === "settings"
+                  ? "Save location for this project."
+                  : "Pre-filled from the default project directory in Preferences (General)."}
               </p>
             </div>
 
