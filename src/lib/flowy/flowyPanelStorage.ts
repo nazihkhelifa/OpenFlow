@@ -31,11 +31,20 @@ export type StoredChatMsg = {
   appliedPlan?: StoredAppliedPlan;
 };
 
+export type StoredPlanProgressSnapshot = {
+  detail: string;
+  stageTitle?: string;
+};
+
 export type StoredChatSession = {
   id: string;
   title: string;
   messages: StoredChatMsg[];
   createdAt: number;
+  /** Opaque planner decomposition payload (restored by Flowy panel). */
+  decomposition?: unknown;
+  /** Last completed planner status line when not using multi-stage checklist. */
+  lastPlanProgress?: StoredPlanProgressSnapshot | null;
 };
 
 function _scopedKey(baseKey: string, scopeId?: string | null): string {
@@ -58,6 +67,19 @@ export function parseStoredSessions(raw: string | null): StoredChatSession[] | n
       if (!item || typeof item !== "object") continue;
       const s = item as Record<string, unknown>;
       if (typeof s.id !== "string" || !Array.isArray(s.messages)) continue;
+      const lastRaw = s.lastPlanProgress;
+      let lastPlanProgress: StoredPlanProgressSnapshot | null | undefined;
+      if (lastRaw === null) lastPlanProgress = null;
+      else if (lastRaw && typeof lastRaw === "object") {
+        const lp = lastRaw as Record<string, unknown>;
+        const detail = typeof lp.detail === "string" ? lp.detail.trim() : "";
+        if (detail)
+          lastPlanProgress = {
+            detail,
+            stageTitle: typeof lp.stageTitle === "string" ? lp.stageTitle : undefined,
+          };
+      }
+
       out.push({
         id: s.id,
         title: typeof s.title === "string" ? s.title : "Chat",
@@ -65,6 +87,8 @@ export function parseStoredSessions(raw: string | null): StoredChatSession[] | n
           (m) => m && typeof m.id === "string" && (m.role === "user" || m.role === "assistant") && typeof m.text === "string"
         ),
         createdAt: typeof s.createdAt === "number" ? s.createdAt : Date.now(),
+        ...(s.decomposition !== undefined ? { decomposition: s.decomposition } : {}),
+        ...(lastPlanProgress !== undefined ? { lastPlanProgress } : {}),
       });
     }
     return out.length > 0 ? out : null;
@@ -192,6 +216,8 @@ export const FLOWY_PLANNER_LLM_OPTIONS: Array<{
   { provider: "google", model: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
   { provider: "openai", model: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
   { provider: "openai", model: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
+  { provider: "openai", model: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+  { provider: "openai", model: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
 ];
 
 const DEFAULT_FLOWY_PLANNER_LLM: FlowyPlannerLlmChoice = {

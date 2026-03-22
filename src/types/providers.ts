@@ -46,6 +46,8 @@ export type LLMModelType =
   | "gemini-3.1-pro-preview"
   | "gpt-4.1-mini"
   | "gpt-4.1-nano"
+  | "gpt-5.4-mini"
+  | "gpt-5.4-nano"
   | "claude-opus-4.6"
   | "claude-sonnet-4.5"
   | "claude-haiku-4.5";

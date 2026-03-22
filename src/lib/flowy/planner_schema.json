@@ -130,5 +130,138 @@
     "defaultImage": "nano-banana",
     "defaultVideo": "veo",
     "defaultText": "gemini"
+  },
+  "aspectRatioPolicy": {
+    "priorityOrder": [
+      "Explicit user dimensions or ratio in the message (including flags like --ar 4:5) → map to the closest supported aspectRatio enum and set data.aspectRatio on the target generateImage/generateVideo node.",
+      "User names a platform, channel, or placement (Instagram, TikTok, YouTube, etc.) → pick the matching preset from socialPlatformPresets (aspectRatio column).",
+      "Infer orientation from creative intent using promptKeywords / defaultMappingHints when no explicit ratio is given.",
+      "Fallback: image 1:1 or 4:5; video 16:9 unless vertical/social short-form is clearly implied."
+    ],
+    "supportedAspectRatios": [
+      "1:1",
+      "2:3",
+      "3:2",
+      "3:4",
+      "4:3",
+      "4:5",
+      "5:4",
+      "9:16",
+      "16:9",
+      "21:9",
+      "1:4",
+      "1:8",
+      "4:1",
+      "8:1"
+    ],
+    "equivalentRatios": "16:9 ≈ 1.78:1; 9:16 ≈ 0.5625:1; 4:5 = 0.8:1; 1.91:1 (many social landscapes) → prefer 16:9 as closest standard in Openflow.",
+    "promptKeywords": {
+      "landscapeWide": [
+        "landscape",
+        "wide shot",
+        "cinematic",
+        "youtube",
+        "widescreen",
+        "16:9",
+        "horizontal",
+        "desktop wallpaper",
+        "film frame",
+        "tv spot"
+      ],
+      "portraitTall": [
+        "portrait orientation",
+        "vertical video",
+        "stories",
+        "reels",
+        "tiktok",
+        "shorts",
+        "9:16",
+        "phone screen",
+        "full bleed vertical"
+      ],
+      "square": ["square", "1:1", "profile photo", "avatar grid"],
+      "feedPortrait": ["instagram feed", "ig feed", "4:5", "portrait feed"],
+      "classicPrintPortrait": ["2:3", "photo print", "dslr portrait"],
+      "tallPoster": ["xiaohongshu", "little red book", "小红书", "3:4 poster", "tall poster"],
+      "ultraWideBanner": ["twitter header", "x header", "linkedin banner", "site banner", "3:1", "cover photo wide"]
+    },
+    "defaultMappingHints": {
+      "landscapeWide": "16:9",
+      "portraitTall": "9:16",
+      "square": "1:1",
+      "feedPortrait": "4:5",
+      "classicPrintPortrait": "2:3",
+      "tallPoster": "3:4",
+      "ultraWideBanner": "21:9"
+    },
+    "reframingNote": "Openflow nodes store aspectRatio, not exact pixels. If the user demands exact pixel output (e.g. 1080×1350), set the closest aspectRatio and mention in assistantText that final crop/export to exact pixels may be done outside the graph."
+  },
+  "socialPlatformPresets": [
+    {
+      "platform": "Instagram",
+      "presets": [
+        { "use": "Feed portrait", "pixels": "1080×1350", "aspectRatio": "4:5" },
+        { "use": "Square post", "pixels": "1080×1080", "aspectRatio": "1:1" },
+        { "use": "Landscape feed / link preview style", "pixels": "1080×566", "aspectRatio": "16:9", "note": "~1.91:1 target; 16:9 is closest standard ratio in-app" }
+      ]
+    },
+    {
+      "platform": "Twitter / X",
+      "presets": [
+        { "use": "Header banner", "pixels": "1500×500", "aspectRatio": "21:9", "note": "3:1 ideal; 21:9 is closest ultrawide enum" },
+        { "use": "Vertical video", "pixels": "720×1280", "aspectRatio": "9:16" },
+        { "use": "Square", "pixels": "720×720", "aspectRatio": "1:1" }
+      ]
+    },
+    {
+      "platform": "LinkedIn",
+      "presets": [
+        { "use": "Link share / article", "pixels": "1200×627", "aspectRatio": "16:9", "note": "~1.91:1" },
+        { "use": "Square", "pixels": "1200×1200", "aspectRatio": "1:1" },
+        { "use": "Portrait", "pixels": "720×900", "aspectRatio": "4:5" }
+      ]
+    },
+    {
+      "platform": "YouTube",
+      "presets": [{ "use": "Standard video", "pixels": "1280×720", "aspectRatio": "16:9" }]
+    },
+    {
+      "platform": "Xiaohongshu (Little Red Book)",
+      "presets": [
+        { "use": "Vertical note", "pixels": "1080×1440", "aspectRatio": "3:4" },
+        { "use": "Square", "pixels": "1080×1080", "aspectRatio": "1:1" }
+      ]
+    },
+    {
+      "platform": "TikTok",
+      "presets": [{ "use": "Full-screen vertical", "pixels": "1080×1920", "aspectRatio": "9:16" }]
+    }
+  ],
+  "videoOutputGuidance": {
+    "veo": {
+      "preferredAspectRatios": ["16:9", "9:16"],
+      "notes": "Use 16:9 for cinematic, YouTube-style, and most horizontal deliverables; 9:16 for TikTok/Reels/Shorts-style vertical. Align with user platform keywords. Duration and resolution stay in generateVideo node fields per app UI."
+    }
+  },
+  "modelFallbackChains": {
+    "purpose": "When Intelligent Model Routing or modelSelectionRules name a specialist that is NOT present in modelCatalog for that modality, walk the ordered list for the task profile and pick the first canonical model that matches an allowed catalog entry.",
+    "catalogMatching": "modelCatalog.* entries use provider + modelId + displayName. Map each entry to a canonical image id when modelId or displayName contains (case-insensitive): nano-banana / banana → nano-banana; seedream / see-dream → seedream; imagen → imagen. Video: veo / veo-3 / google veo → veo. Prompt: gemini → google text models; gpt- / openai → OpenAI; claude → Anthropic.",
+    "generateImage": {
+      "byTaskProfile": {
+        "textOnImageTypographyCompositingEditing": ["seedream", "nano-banana", "imagen"],
+        "photorealPortraitsProductsGeneral": ["nano-banana", "imagen", "seedream"],
+        "artisticIllustrationCreativeStyle": ["imagen", "nano-banana", "seedream"]
+      },
+      "ifNoCanonicalMatch": "Use the first modelCatalog.generateImage entry as a safe default for that project.",
+      "ifCatalogEmpty": "Omit catalog restriction — use modelSelectionRules and defaults as usual."
+    },
+    "generateVideo": {
+      "orderedPreference": ["veo"],
+      "ifVeoMissing": "Use the first modelCatalog.generateVideo entry. If catalog empty, default to veo per modelSelectionRules."
+    },
+    "prompt": {
+      "preference": "Prefer a catalog entry aligned with the task (e.g. Gemini for analysis/prompt craft when listed); otherwise first modelCatalog.prompt entry.",
+      "ifCatalogEmpty": "Use project defaults implied by the request; do not invent API model strings not in app presets."
+    }
   }
 }

@@ -227,6 +227,30 @@ If user explicitly requests a model, use that model. If the user mentions a styl
 
 When creating `generateImage` nodes for **editing or transformation** of existing images (not from scratch), prefer `seedream` since it handles compositing and controlled edits better.
 
+### Model catalog availability — nearest specialist
+Each request may include **`modelCatalog`**: project-allowed presets per modality (`generateImage`, `generateVideo`, `generateAudio`, `generate3d`, `prompt`, etc.).
+
+1. **If `modelCatalog` for that modality is non-empty**, only configure **new** nodes with models you can map to an entry in that list (use `provider`, `modelId`, `displayName`; see **`modelFallbackChains.catalogMatching`** in the injected JSON for canonical name hints).
+2. **If the ideal model from the rules above is not available** in that catalog, use **`modelFallbackChains`** in the injected JSON: choose the task profile (text-on-image vs photoreal vs artistic), walk its **ordered** canonical list, and pick the **first** model that matches an allowed catalog entry.
+3. **If no canonical id in the chain matches** any catalog entry, use the **first** catalog entry for that modality as the safe default (same modality, project-approved).
+4. **If `modelCatalog` for that modality is empty or missing**, assume full in-app capability and follow Intelligent Model Routing + `modelSelectionRules` without this restriction.
+5. **User explicitly names an unavailable model** — pick the nearest available per the chain, set `data.model` / `selectedModel` consistently, and add **one short line** in `assistantText` naming the substitution.
+
+## Aspect ratio, framing & social delivery
+Use this on every new **generateImage** / **generateVideo** plan when the user cares about shape, platform, or orientation. The planner schema injects a JSON registry (`aspectRatioPolicy`, `socialPlatformPresets`, `videoOutputGuidance`) — treat it as authoritative for **mapping intent → `data.aspectRatio`**.
+
+### Priority (highest first)
+1. **Explicit user numbers** — e.g. `1920x1080`, `1080×1350`, `4:5`, `16:9`, `--ar 3:4`, “9:16 vertical”. Map to the **closest supported** `aspectRatio` enum on the node (see `supportedAspectRatios` in JSON). Strip size flags from free prompt text when they belong in settings.
+2. **Named platform or placement** — e.g. “Instagram feed”, “TikTok”, “YouTube thumbnail”, “LinkedIn post”, “小红书”. Use **`socialPlatformPresets`** for the recommended `aspectRatio` (pixel columns are reference targets; Openflow stores ratio, not pixels).
+3. **Creative language** — wide/cinematic/YouTube-style → bias **landscape** (`16:9` or `21:9` for banners); stories/reels/TikTok/vertical phone → **`9:16`**; square/profile → **`1:1`**; IG-style portrait feed → **`4:5`**; tall editorial / 小红书-style → **`3:4`**; classic photo portrait → **`2:3`**. Use **`promptKeywords` / `defaultMappingHints`** in the JSON as a checklist.
+4. **Defaults** when still unclear — image: **`1:1`** or **`4:5`**; video: **`16:9`** unless vertical short-form is obvious.
+
+### Rules
+- **Equivalence**: Treat common aliases (e.g. 1.78:1 vs 16:9) as the same intent; pick the enum that exists in the app.
+- **Exact pixels**: If the user demands a specific pixel size, set the **closest** `aspectRatio` and briefly note in `assistantText` that pixel-perfect export may require an external crop if their size does not match the enum.
+- **Video**: For **`veo`**, prefer **`16:9`** or **`9:16`** per **`videoOutputGuidance`** and user platform cues.
+- **Consistency**: When adding multiple nodes for one campaign, keep **the same aspectRatio** unless the user asked for different formats.
+
 ## Node Role Guidelines
 - `prompt` nodes: ideation, prompt writing, summarization, analysis, decomposition.
 - `generateImage` nodes: generation, editing, style transfer, compositing, controlled variations.
@@ -429,10 +453,10 @@ When the Execution digest shows errors or missing outputs, apply these recovery 
 
 1. **Prompt Simplification**: If a generation node failed, simplify the prompt — remove complex composition requirements, reduce detail density, remove conflicting style instructions. Try a cleaner, shorter prompt.
 
-2. **Model Fallback**: If a specific model fails, switch to an alternative:
-   - Image generation failure → try a different image model (e.g., `nano-banana` → `imagen` or vice versa)
-   - If `seedream` fails on complex edits → fall back to `nano-banana` for generation from scratch
-   - Video failures are harder to recover — simplify the input image or prompt first
+2. **Model Fallback**: If a specific model fails, switch to an alternative (respect **`modelCatalog`** and **`modelFallbackChains`** when choosing replacements so the new model is still project-allowed):
+   - Image generation failure → try another image model in the same fallback order (e.g., `nano-banana` → `imagen` → `seedream` by task profile)
+   - If `seedream` fails on complex edits → fall back to `nano-banana` for generation from scratch when available in catalog
+   - Video failures — try another allowed video model if listed; else simplify the input image or prompt first
 
 3. **Parameter Adjustment**: If the output exists but is wrong:
    - Change aspect ratio if composition looks cramped

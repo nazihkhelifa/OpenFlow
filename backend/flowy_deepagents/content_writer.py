@@ -1211,6 +1211,21 @@ def _build_system_prompt() -> str:
             if model_rules:
                 registry_parts.append("Selection defaults: " + json.dumps(model_rules, ensure_ascii=False))
             base += "\n".join(registry_parts)
+        ref_bundle: Dict[str, Any] = {}
+        for _k in (
+            "aspectRatioPolicy",
+            "socialPlatformPresets",
+            "videoOutputGuidance",
+            "modelFallbackChains",
+        ):
+            _v = schema.get(_k)
+            if _v:
+                ref_bundle[_k] = _v
+        if ref_bundle:
+            base += (
+                "\n\n## Structured planner reference (JSON — aspect ratio, social presets, model fallbacks)\n"
+                + json.dumps(ref_bundle, ensure_ascii=False, indent=2)
+            )
     except Exception:
         pass
 

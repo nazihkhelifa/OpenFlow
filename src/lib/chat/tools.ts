@@ -55,7 +55,7 @@ AI video generation. Takes image + text inputs, outputs video. Only available wi
 ### Prompt (LLM)
 The Prompt node can run LLM generation for expanding prompts or analyzing images.
 - **Provider dropdown**: Google or OpenAI
-- **Model dropdown**: Gemini 3 Flash, Gemini 2.5 Flash, Gemini 3.0 Pro (Google) / GPT-4.1 Mini, GPT-4.1 Nano (OpenAI)
+- **Model dropdown**: Gemini 3 Flash, Gemini 2.5 Flash, Gemini 3.0 Pro (Google) / GPT-4.1 Mini, GPT-4.1 Nano, GPT-5.4 Mini, GPT-5.4 Nano (OpenAI)
 - **Parameters** (collapsible): Temperature slider (0-2), Max Tokens slider (256-16384)
 - Takes **text** input (required), optional **image** input
 

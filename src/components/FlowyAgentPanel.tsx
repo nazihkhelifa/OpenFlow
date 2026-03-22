@@ -121,6 +121,42 @@ type DecompositionInfo = {
   isLastStage: boolean;
 };
 
+function parseDecompositionFromStorage(raw: unknown): DecompositionInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (!Array.isArray(o.stages) || o.stages.length === 0) return null;
+  const total =
+    typeof o.totalStages === "number" && o.totalStages > 0 ? o.totalStages : o.stages.length;
+  const stages: DecompositionStage[] = [];
+  for (const st of o.stages) {
+    if (!st || typeof st !== "object") continue;
+    const x = st as Record<string, unknown>;
+    stages.push({
+      id: String(x.id ?? ""),
+      title: String(x.title ?? ""),
+      instruction: String(x.instruction ?? ""),
+      dependsOn: Array.isArray(x.dependsOn) ? x.dependsOn.map(String) : [],
+      expectedOutput: String(x.expectedOutput ?? ""),
+      requiresExecution: Boolean(x.requiresExecution),
+    });
+  }
+  if (stages.length === 0) return null;
+  return {
+    stages,
+    currentStageIndex:
+      typeof o.currentStageIndex === "number" ? o.currentStageIndex : 0,
+    totalStages: total,
+    overallStrategy: String(o.overallStrategy ?? ""),
+    estimatedComplexity: String(o.estimatedComplexity ?? ""),
+    isLastStage: Boolean(o.isLastStage),
+  };
+}
+
+type FlowyPlanProgressSnapshot = {
+  detail: string;
+  stageTitle?: string;
+};
+
 type PlannerStageEvent = {
   progress?: string;
   detail?: string;
@@ -210,6 +246,8 @@ type ChatSession = {
   title: string;
   messages: ChatMsg[];
   createdAt: number;
+  decomposition?: DecompositionInfo | null;
+  lastPlanProgress?: FlowyPlanProgressSnapshot | null;
 };
 
 /** Long / multi-line user prompts get a collapsed one-line preview + expand, like the reference chat panel. */
@@ -437,6 +475,7 @@ function extractStyleSignals(text: string): {
     "gemini",
     "claude",
     "gpt-4.1",
+    "gpt-5.4",
   ];
   for (const m of modelMatchers) {
     if (source.includes(m)) models.push(m);
@@ -751,10 +790,10 @@ export function FlowyAgentPanel({
 
   const createSession = useCallback((title = "New Chat"): ChatSession => {
     const base = createEmptyFlowySession();
-    return { ...base, title };
+    return { ...base, title } as ChatSession;
   }, []);
 
-  const seed = useMemo(() => createEmptyFlowySession(), []);
+  const seed = useMemo(() => createEmptyFlowySession() as ChatSession, []);
 
   const [sessions, setSessions] = useState<ChatSession[]>(() => [{ ...seed, title: "New Chat" }]);
   const sessionsRef = useRef(sessions);
@@ -787,11 +826,25 @@ export function FlowyAgentPanel({
     );
   }, []);
 
+  const patchFlowySession = useCallback(
+    (sessionId: string, patch: Partial<Pick<ChatSession, "decomposition" | "lastPlanProgress">>) => {
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, ...patch } : s)));
+    },
+    []
+  );
+
   /** Single source of truth: always read the active thread from `sessions` (avoids stale split state when switching chats mid-request). */
   const chatMessages = useMemo(
     () => sessions.find((s) => s.id === activeSessionId)?.messages ?? [],
     [sessions, activeSessionId]
   );
+
+  const currentFlowySession = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId),
+    [sessions, activeSessionId]
+  );
+  const activeDecomposition = currentFlowySession?.decomposition ?? null;
+  const activeLastPlanProgress = currentFlowySession?.lastPlanProgress ?? null;
 
   const [flowyAgentMode, setFlowyAgentMode] = useState<FlowyAgentMode>(() => loadFlowyAgentMode());
   const flowyAgentModeRef = useRef(flowyAgentMode);
@@ -921,6 +974,7 @@ export function FlowyAgentPanel({
   const [cursorActionLabel, setCursorActionLabel] = useState<string>("Ready");
   const [plannerProgress, setPlannerProgress] = useState<string | null>(null);
   const [plannerStageEvent, setPlannerStageEvent] = useState<PlannerStageEvent | null>(null);
+  const plannerStageEventRef = useRef<PlannerStageEvent | null>(null);
   const autoRunIdRef = useRef(0);
   const autoRunCompletedRef = useRef(false);
   const autoApplyStartedForOpsRef = useRef<EditOperation[] | null>(null);
@@ -929,7 +983,6 @@ export function FlowyAgentPanel({
   /** Flowy-approved node runs: abort skips remaining nodes; `onStopWorkflow` cancels current `executeWorkflow`. */
   const flowyRunAbortRef = useRef<AbortController | null>(null);
   const lastGoalRef = useRef<string | null>(null);
-  const [activeDecomposition, setActiveDecomposition] = useState<DecompositionInfo | null>(null);
   const activeDecompositionRef = useRef<DecompositionInfo | null>(null);
   activeDecompositionRef.current = activeDecomposition;
   const [styleMemory, setStyleMemory] = useState<StyleMemory | null>(null);
@@ -942,11 +995,18 @@ export function FlowyAgentPanel({
   useEffect(() => {
     const loaded = loadFlowyPanelSessions(sessionScopeId);
     if (loaded) {
-      setSessions(loaded.sessions as ChatSession[]);
+      setSessions(
+        loaded.sessions.map((s) => ({
+          ...(s as ChatSession),
+          decomposition: parseDecompositionFromStorage(s.decomposition),
+          lastPlanProgress:
+            s.lastPlanProgress?.detail?.trim() ? s.lastPlanProgress : s.lastPlanProgress === null ? null : undefined,
+        }))
+      );
       setActiveSessionId(loaded.activeId);
     } else {
-      const fresh = createEmptyFlowySession() as ChatSession;
-      setSessions([{ ...fresh, title: "New Chat" }]);
+      const fresh = createEmptyFlowySession();
+      setSessions([{ ...(fresh as ChatSession), title: "New Chat" }]);
       setActiveSessionId(fresh.id);
     }
     setCustomInstructions(loadCustomInstructions(sessionScopeId));
@@ -1206,8 +1266,10 @@ export function FlowyAgentPanel({
       ]);
 
       setErrorMessage(null);
+      patchFlowySession(sessionId, { lastPlanProgress: null });
       setIsPlanning(true);
       setPlannerProgress(null);
+      plannerStageEventRef.current = null;
       setPlannerStageEvent(null);
       activePlanAbortRef.current?.abort();
       const abortController = new AbortController();
@@ -1218,6 +1280,7 @@ export function FlowyAgentPanel({
         updateSessionMessages(sessionId, (prev) => [...prev, userMsg]);
       }
 
+      let persistLastPlannerLine = true;
       try {
         const styleCtx = styleMemoryRef.current ? styleMemoryToPromptContext(styleMemoryRef.current) : "";
         const nodeDefaults = loadNodeDefaults();
@@ -1350,6 +1413,7 @@ export function FlowyAgentPanel({
               if (evt.event === "progress" && evt.data) {
                 const p = evt.data as PlannerStageEvent;
                 setPlannerProgress(p.detail || p.progress || "Planning...");
+                plannerStageEventRef.current = p;
                 setPlannerStageEvent(p);
               } else if (evt.event === "result" && evt.data) {
                 data = evt.data as any;
@@ -1381,6 +1445,7 @@ export function FlowyAgentPanel({
           if (payload?.progressEvents?.length) {
             const last = payload.progressEvents[payload.progressEvents.length - 1];
             setPlannerProgress(last.detail || last.progress);
+            plannerStageEventRef.current = last as PlannerStageEvent;
             setPlannerStageEvent(last as PlannerStageEvent);
           }
         }
@@ -1423,7 +1488,8 @@ export function FlowyAgentPanel({
           }
 
           if (ctrl.intent === "clear_plan") {
-            setActiveDecomposition(null);
+            plannerStageEventRef.current = null;
+            patchFlowySession(sessionId, { decomposition: null, lastPlanProgress: null });
             pushAssistant(data.assistantText || "Plan cleared.");
             setInput("");
             return;
@@ -1550,8 +1616,12 @@ export function FlowyAgentPanel({
           ops = [];
         }
 
-        if (data.decomposition) {
-          setActiveDecomposition(data.decomposition);
+        if (data.decomposition && data.decomposition.totalStages > 0) {
+          persistLastPlannerLine = false;
+          patchFlowySession(sessionId, {
+            decomposition: data.decomposition,
+            lastPlanProgress: null,
+          });
         }
 
         const uiParsedForPlan = parseOpenflowUiCommandsFromJson(data.uiCommands);
@@ -1606,6 +1676,20 @@ export function FlowyAgentPanel({
         }
         setIsPlanning(false);
         setPlannerProgress(null);
+        const ev = plannerStageEventRef.current;
+        if (
+          persistLastPlannerLine &&
+          ev &&
+          (ev.detail?.trim() || ev.stageTitle?.trim())
+        ) {
+          patchFlowySession(sessionId, {
+            lastPlanProgress: {
+              detail: (ev.detail?.trim() || ev.stageTitle?.trim() || "").trim(),
+              stageTitle: ev.stageTitle?.trim() || undefined,
+            },
+          });
+        }
+        plannerStageEventRef.current = null;
         setPlannerStageEvent(null);
       }
     },
@@ -1617,6 +1701,7 @@ export function FlowyAgentPanel({
       imageAttachments,
       isPlanning,
       onRunNodeIds,
+      patchFlowySession,
       resetPendingUiCommands,
       requireCautionApproval,
       runFlowyPendingNodes,
@@ -2736,7 +2821,8 @@ export function FlowyAgentPanel({
 
         {(isPlanning ||
           plannerStageEvent != null ||
-          (activeDecomposition != null && activeDecomposition.totalStages > 0)) && (
+          (activeDecomposition != null && activeDecomposition.totalStages > 0) ||
+          (activeLastPlanProgress != null && activeLastPlanProgress.detail.trim().length > 0)) && (
           <div
             className="mx-4 my-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
             role="status"
@@ -2746,8 +2832,12 @@ export function FlowyAgentPanel({
             {activeDecomposition && activeDecomposition.totalStages > 0 ? (
               <div className="space-y-1.5">
                 {activeDecomposition.stages.map((s, i) => {
-                  const done = i < activeDecomposition.currentStageIndex;
-                  const current = i === activeDecomposition.currentStageIndex;
+                  const markFinalStageDone =
+                    !isPlanning && Boolean(activeDecomposition.isLastStage);
+                  const done =
+                    i < activeDecomposition.currentStageIndex ||
+                    (markFinalStageDone && i === activeDecomposition.currentStageIndex);
+                  const current = i === activeDecomposition.currentStageIndex && !done;
                   return (
                     <div
                       key={s.id}
@@ -2790,14 +2880,15 @@ export function FlowyAgentPanel({
               </div>
             ) : (
               <div className="flex items-start gap-2.5 text-[11px] leading-snug text-neutral-400">
-                {isPlanning ? (
+                {isPlanning || plannerStageEvent != null ? (
                   <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-blue-300" aria-hidden />
                 ) : (
-                  <Circle className="mt-0.5 size-3.5 shrink-0 text-blue-300/80" aria-hidden />
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400/90" aria-hidden />
                 )}
                 <span className="min-w-0 text-neutral-300/90">
                   {plannerStageEvent?.detail?.trim() ||
                     plannerProgress?.trim() ||
+                    activeLastPlanProgress?.detail?.trim() ||
                     (isPlanning ? "Working on your request…" : "—")}
                 </span>
               </div>
