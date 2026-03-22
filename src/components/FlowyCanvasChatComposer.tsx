@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, type RefObject } from "react";
-import { AtSign, Loader2, Paperclip, X } from "lucide-react";
+import { AtSign, Paperclip, X } from "lucide-react";
 import {
   FLOWY_PLANNER_LLM_OPTIONS,
   flowyPlannerLlmOptionId,
@@ -90,12 +90,6 @@ export function FlowyCanvasChatComposer({
         }}
       >
         <div className="flex w-full flex-col gap-2.5">
-          {isPlanning && (
-            <div className="-mt-1 flex items-center gap-2 px-1 text-[11px] text-neutral-400">
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-              <span>Flowy is thinking...</span>
-            </div>
-          )}
           {continuationTitle ? (
             <div
               className="-mt-1 rounded-xl border border-purple-400/20 bg-purple-950/30 px-2 py-1.5 shadow-none ring-1 ring-inset ring-white/5"
