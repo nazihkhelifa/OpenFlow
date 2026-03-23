@@ -614,6 +614,12 @@ def _optimize_operations_pre_validation(
     any_prompt_ids = [str(n.get("id")) for n in nodes if n.get("type") == "prompt" and n.get("id")]
 
     planned_id_remap: Dict[str, str] = {}
+    planned_prompt_adds = [
+        op
+        for op in operations
+        if isinstance(op, dict) and op.get("type") == "addNode" and op.get("nodeType") == "prompt"
+    ]
+    allow_prompt_reuse = len(planned_prompt_adds) <= 1
 
     # Phase A: prompt-node reuse transformation (safe / high-value case)
     transformed: List[Dict[str, Any]] = []
@@ -622,6 +628,11 @@ def _optimize_operations_pre_validation(
             transformed.append(op)
             continue
         if op.get("type") != "addNode" or op.get("nodeType") != "prompt":
+            transformed.append(op)
+            continue
+        if not allow_prompt_reuse:
+            # Variation/branch plans often need one prompt node per branch.
+            # Do not collapse multiple planned prompt nodes into one reused node.
             transformed.append(op)
             continue
         data = op.get("data")
