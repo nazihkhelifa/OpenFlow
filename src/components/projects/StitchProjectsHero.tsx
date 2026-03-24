@@ -2,9 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
-import type { WorkflowFile } from "@/store/workflowStore";
-import { getQuickstartDefaults, getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
-import type { LLMModelType, LLMProvider } from "@/types";
+import { getQuickstartSystemInstructionExtra } from "@/store/utils/localStorage";
 
 const SUGGESTIONS = [
   "Product shots with consistent lighting from one reference image",
@@ -14,22 +12,13 @@ const SUGGESTIONS = [
 ];
 
 type StitchProjectsHeroProps = {
-  onWorkflowGenerated: (workflow: WorkflowFile) => void;
+  onPromptSubmitted: (prompt: string) => Promise<void> | void;
 };
 
-export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroProps) {
+export function StitchProjectsHero({ onPromptSubmitted }: StitchProjectsHeroProps) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const quickstartDefaults = getQuickstartDefaults();
-  const provider: LLMProvider = quickstartDefaults?.provider ?? "google";
-  const defaultModels: Record<LLMProvider, LLMModelType> = {
-    google: "gemini-3-flash-preview",
-    openai: "gpt-4.1-mini",
-    anthropic: "claude-sonnet-4.5",
-  };
-  const model: LLMModelType = quickstartDefaults?.model ?? defaultModels[provider];
   const systemInstructionExtra = getQuickstartSystemInstructionExtra();
 
   const submit = useCallback(async () => {
@@ -41,27 +30,17 @@ export function StitchProjectsHero({ onWorkflowGenerated }: StitchProjectsHeroPr
     setError(null);
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/quickstart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: text,
-          contentLevel: "full",
-          provider,
-          model,
-          systemInstructionExtra,
-        }),
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || "Failed to generate workflow");
-      if (result.workflow) onWorkflowGenerated(result.workflow as WorkflowFile);
+      const userMessage = systemInstructionExtra?.trim()
+        ? `${text}\n\nAdditional instructions:\n${systemInstructionExtra.trim()}`
+        : text;
+      await onPromptSubmitted(userMessage);
       setPrompt("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, provider, model, systemInstructionExtra, onWorkflowGenerated]);
+  }, [prompt, systemInstructionExtra, onPromptSubmitted]);
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-8">

@@ -54,6 +54,7 @@ import {
   loadFlowyPanelSessions,
   loadFlowyPlannerLlm,
   loadRequireCautionApproval,
+  popQueuedFlowyStartPrompt,
   loadStyleMemory,
   saveCanvasStateMemory,
   saveCustomInstructions,
@@ -771,6 +772,7 @@ export function FlowyAgentPanel({
 }) {
   const { screenToFlowPosition, setCenter, getViewport } = useReactFlow();
   const workflowId = useWorkflowStore((s) => s.workflowId);
+  const setFlowyAgentOpen = useWorkflowStore((s) => s.setFlowyAgentOpen);
   const storeUpdateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const setNavigationTarget = useWorkflowStore((s) => s.setNavigationTarget);
   const sessionScopeId = workflowId || "global";
@@ -1745,6 +1747,18 @@ export function FlowyAgentPanel({
     setImageAttachments([]);
   }, [continuationSourceSessionId, input, requestPlan]);
 
+  useEffect(() => {
+    if (!storageReady || isPlanning) return;
+    const queued = popQueuedFlowyStartPrompt(sessionScopeId);
+    if (!queued) return;
+    setInput("");
+    if (!isOpen) setFlowyAgentOpen(true);
+    // Defer one tick so open state settles before planning starts.
+    setTimeout(() => {
+      void requestPlan(queued, { forkNewThread: true });
+    }, 0);
+  }, [storageReady, isPlanning, sessionScopeId, requestPlan, isOpen, setFlowyAgentOpen]);
+
   const handleSuggestNextStep = useCallback(() => {
     void requestPlan(
       "Next step: use the execution digest and graph — wire missing edges, run pending generators, fix errors, or add a small refinement. Minimal operations; empty operations if nothing is needed.",
@@ -1814,10 +1828,14 @@ export function FlowyAgentPanel({
     }
   }, [flowyAgentMode, stopAutoRun]);
 
+  const agentBusy = isPlanning || isExecutingStep || isRunning;
+
   useEffect(() => {
-    if (isOpen) return;
+    // Only auto-abort when user closes panel while agent is idle.
+    // Keep in-flight runs alive for queued/project-start prompts.
+    if (isOpen || agentBusy) return;
     activePlanAbortRef.current?.abort();
-  }, [isOpen]);
+  }, [isOpen, agentBusy]);
 
   const sleep = useCallback((ms: number) => new Promise<void>((r) => setTimeout(r, ms)), []);
 
@@ -2301,7 +2319,11 @@ export function FlowyAgentPanel({
   );
 
   const setFlowyHistoryRailOpen = useWorkflowStore((s) => s.setFlowyHistoryRailOpen);
-  const setFlowyAgentOpen = useWorkflowStore((s) => s.setFlowyAgentOpen);
+
+  useEffect(() => {
+    if (!agentBusy) return;
+    if (!isOpen) setFlowyAgentOpen(true);
+  }, [agentBusy, isOpen, setFlowyAgentOpen]);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
@@ -2349,13 +2371,14 @@ export function FlowyAgentPanel({
   );
 
   const handleFlowyMorphClose = useCallback(() => {
+    if (agentBusy) return;
     if (prefersReducedMotion) {
       onClose();
       return;
     }
     pendingMorphCloseRef.current = true;
     setMotionExpanded(false);
-  }, [onClose, prefersReducedMotion]);
+  }, [agentBusy, onClose, prefersReducedMotion]);
 
   const onMorphShellAnimationComplete = useCallback(() => {
     if (!pendingMorphCloseRef.current) return;
