@@ -47,6 +47,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { capFlowyChatHistory, type FlowyChatHistoryTurn } from "@/lib/flowy/capFlowyChatHistory";
 import {
   createEmptyFlowySession,
+  loadAutoContinuePlan,
   loadCanvasStateMemory,
   loadCustomInstructions,
   loadEnforceCanvasControl,
@@ -56,6 +57,7 @@ import {
   loadRequireCautionApproval,
   popQueuedFlowyStartPrompt,
   loadStyleMemory,
+  saveAutoContinuePlan,
   saveCanvasStateMemory,
   saveCustomInstructions,
   saveEnforceCanvasControl,
@@ -852,6 +854,11 @@ export function FlowyAgentPanel({
   flowyAgentModeRef.current = flowyAgentMode;
   const [enforceCanvasControl, setEnforceCanvasControl] = useState<boolean>(() => loadEnforceCanvasControl());
   const [requireCautionApproval, setRequireCautionApproval] = useState<boolean>(() => loadRequireCautionApproval());
+  const [autoContinuePlan, setAutoContinuePlan] = useState<boolean>(() => loadAutoContinuePlan());
+  const autoContinuePlanRef = useRef(autoContinuePlan);
+  autoContinuePlanRef.current = autoContinuePlan;
+  /** Set true when backend signals pending plan steps remain after this response. */
+  const hasRemainingPlanStepsRef = useRef(false);
   const [plannerLlm, setPlannerLlm] = useState<FlowyPlannerLlmChoice>(() => loadFlowyPlannerLlm());
   const plannerLlmRef = useRef(plannerLlm);
   plannerLlmRef.current = plannerLlm;
@@ -1070,6 +1077,10 @@ export function FlowyAgentPanel({
   useEffect(() => {
     saveRequireCautionApproval(requireCautionApproval);
   }, [requireCautionApproval]);
+
+  useEffect(() => {
+    saveAutoContinuePlan(autoContinuePlan);
+  }, [autoContinuePlan]);
 
   useEffect(() => {
     saveFlowyPlannerLlm(plannerLlm);
@@ -1664,6 +1675,7 @@ export function FlowyAgentPanel({
           setExecutionIndex(0);
           setPendingExecuteNodeIds(data.executeNodeIds ?? null);
           setPendingRunApprovalRequired(data.runApprovalRequired ?? true);
+          hasRemainingPlanStepsRef.current = data.hasRemainingPlanSteps === true;
           autoRunCompletedRef.current = false;
         }
         setCursor((c) => ({ ...c, visible: true }));
@@ -1719,6 +1731,10 @@ export function FlowyAgentPanel({
       setContinuationSourceSessionId,
     ]
   );
+
+  /** Stable ref so callbacks that can't list requestPlan as a dep still invoke the latest version. */
+  const requestPlanRef = useRef(requestPlan);
+  requestPlanRef.current = requestPlan;
 
   const handlePlan = useCallback(async () => {
     const trimmed = input.trim();
@@ -1997,12 +2013,23 @@ export function FlowyAgentPanel({
       }
       return msgs;
     });
+    // Capture before clearing — needed for auto-continue check below.
+    const hadExecuteIds = pendingExecuteNodeIds;
     setPendingOperations(null);
     setPendingExplanation(null);
     setPendingExecuteNodeIds(null);
     autoRunCompletedRef.current = true;
     setExecutionIndex(0);
     plannedToActualNodeIdRef.current.clear();
+
+    // Auto-continue to next plan step when enabled and no execution is pending.
+    // (If execution is required, auto-continue fires from the Run button handler instead.)
+    if (autoContinuePlanRef.current && hasRemainingPlanStepsRef.current && !hadExecuteIds?.length) {
+      hasRemainingPlanStepsRef.current = false;
+      setTimeout(() => {
+        void requestPlanRef.current("continue", { suppressUserEcho: true });
+      }, 700);
+    }
   }, [
     describeOperation,
     onApplyEdits,
@@ -3190,10 +3217,18 @@ export function FlowyAgentPanel({
 
                         dismissPendingPlan();
 
+                        await new Promise((r) => setTimeout(r, 800));
+
+                        // If auto-continue is on and there are remaining canvas plan steps,
+                        // continue to the next plan step automatically.
+                        if (autoContinuePlanRef.current && hasRemainingPlanStepsRef.current) {
+                          hasRemainingPlanStepsRef.current = false;
+                          await requestPlan("continue", { suppressUserEcho: true });
+                          return;
+                        }
+
                         const goal = lastGoalRef.current;
                         if (!goal) return;
-
-                        await new Promise((r) => setTimeout(r, 800));
 
                         const decomp = activeDecompositionRef.current;
                         if (decomp && !decomp.isLastStage) {
@@ -3306,6 +3341,22 @@ export function FlowyAgentPanel({
                       onChange={(e) => setRequireCautionApproval(e.target.checked)}
                       className="h-4 w-4 accent-blue-500"
                     />
+                  </label>
+                  <label className="flex flex-col gap-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Auto-continue canvas plan steps</span>
+                      <input
+                        type="checkbox"
+                        checked={autoContinuePlan}
+                        onChange={(e) => setAutoContinuePlan(e.target.checked)}
+                        className="h-4 w-4 accent-violet-500"
+                      />
+                    </div>
+                    <span className="text-[10px] leading-snug text-neutral-500">
+                      {autoContinuePlan
+                        ? "Agent builds all steps without pausing. Always pauses when node execution is required."
+                        : "Agent pauses after each plan step and waits for you to continue."}
+                    </span>
                   </label>
                 </div>
               </div>

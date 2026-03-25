@@ -11,6 +11,7 @@ export const FLOWY_AGENT_MODE_KEY = "openflows-flowy-agent-mode";
 export const FLOWY_PLANNER_LLM_KEY = "openflows-flowy-planner-llm";
 export const FLOWY_ENFORCE_CANVAS_CONTROL_KEY = "openflows-flowy-enforce-canvas-control";
 export const FLOWY_REQUIRE_CAUTION_APPROVAL_KEY = "openflows-flowy-require-caution-approval";
+export const FLOWY_AUTO_CONTINUE_PLAN_KEY = "openflows-flowy-auto-continue-plan";
 export const FLOWY_STYLE_MEMORY_KEY = "openflows-flowy-style-memory";
 export const FLOWY_CANVAS_STATE_MEMORY_KEY = "openflows-flowy-canvas-state-memory";
 export const FLOWY_QUEUED_START_PROMPT_KEY = "openflows-flowy-queued-start-prompt";
@@ -334,6 +335,29 @@ export function saveRequireCautionApproval(enabled: boolean): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(FLOWY_REQUIRE_CAUTION_APPROVAL_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Auto-continue: when true the agent proceeds through plan steps automatically.
+ *  Only pauses when node execution is required. Defaults to true. */
+export function loadAutoContinuePlan(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const v = localStorage.getItem(FLOWY_AUTO_CONTINUE_PLAN_KEY);
+    if (v === "0") return false;
+    if (v === "1") return true;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+export function saveAutoContinuePlan(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(FLOWY_AUTO_CONTINUE_PLAN_KEY, enabled ? "1" : "0");
   } catch {
     /* ignore */
   }

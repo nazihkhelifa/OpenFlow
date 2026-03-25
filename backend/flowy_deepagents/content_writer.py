@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import functools
@@ -2696,6 +2696,12 @@ def main() -> None:
             workflow_state=workflow_state,
             operations=out.get("operations"),
         ).model_dump()
+        # Remaining plan steps: how many agent-authored plan comment nodes are
+        # still unresolved BEFORE this response's operations are applied.
+        # If > 1 pending steps exist, the agent will need another pass after this one.
+        _plan_steps_now = _extract_canvas_plan_steps(workflow_state)
+        _pending_now = sum(1 for s in _plan_steps_now if not s["resolved"])
+        out["hasRemainingPlanSteps"] = _pending_now > 1
         out["telemetry"] = {
             "routerBypassed": skip_router,
             "agentMode": agent_mode,
