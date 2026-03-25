@@ -14,6 +14,7 @@ const VALID_NODE_TYPES: NodeType[] = [
   "annotation",
   "prompt",
   "generateImage",
+  "cameraAngleControl",
   "generateVideo",
   "generate3d",
 ];

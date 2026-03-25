@@ -72,6 +72,8 @@ export function getNodeHandles(nodeType: string): {
       return { inputs: ["text", "image"], outputs: ["text"] };
     case "generateImage":
       return { inputs: ["image", "text"], outputs: ["image"] };
+    case "cameraAngleControl":
+      return { inputs: ["image", "text"], outputs: ["image"] };
     case "generateVideo":
       return { inputs: ["image", "text"], outputs: ["video"] };
     case "generate3d":

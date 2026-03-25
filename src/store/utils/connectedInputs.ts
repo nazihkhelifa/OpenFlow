@@ -12,6 +12,7 @@ import {
   AudioInputNodeData,
   AnnotationNodeData,
   NanoBananaNodeData,
+  CameraAngleControlNodeData,
   GenerateVideoNodeData,
   Generate3DNodeData,
   GenerateAudioNodeData,
@@ -72,7 +73,11 @@ function getSourceOutput(
     return { type: "audio", value: (sourceNode.data as AudioInputNodeData).audioFile };
   } else if (sourceNode.type === "annotation") {
     return { type: "image", value: (sourceNode.data as AnnotationNodeData).outputImage };
-  } else if (sourceNode.type === "generateImage" || (sourceNode as { type: string }).type === "nanoBanana") {
+  } else if (
+    sourceNode.type === "generateImage" ||
+    sourceNode.type === "cameraAngleControl" ||
+    (sourceNode as { type: string }).type === "nanoBanana"
+  ) {
     const nbData = sourceNode.data as NanoBananaNodeData;
     return { type: "image", value: nbData.outputImage };
   } else if (sourceNode.type === "generate3d") {
@@ -319,7 +324,7 @@ export function validateWorkflowPure(
 
   // Check each Generate Image node has required inputs (text required, image optional)
   nodes
-    .filter((n) => n.type === "generateImage" || (n as { type: string }).type === "nanoBanana")
+    .filter((n) => n.type === "generateImage" || n.type === "cameraAngleControl" || (n as { type: string }).type === "nanoBanana")
     .forEach((node) => {
       const textConnected = edges.some(
         (e) => e.target === node.id &&
@@ -382,10 +387,12 @@ export function hasRequiredInputsConnected(
 
   switch (nodeType) {
     case "generateImage":
+    case "cameraAngleControl":
     case "nanoBanana": {
       const hasInlinePrompt = !!(
-        node.data?.inputPrompt &&
-        String(node.data.inputPrompt).trim().length > 0
+        (node.data?.inputPrompt && String(node.data.inputPrompt).trim().length > 0) ||
+        ((node.data as CameraAngleControlNodeData | undefined)?.cameraPrompt &&
+          String((node.data as CameraAngleControlNodeData).cameraPrompt).trim().length > 0)
       );
       return hasTextEdge || hasInlinePrompt;
     }

@@ -20,6 +20,7 @@ export {
 
 export { executeNanoBanana } from "./nanoBananaExecutor";
 export type { NanoBananaOptions } from "./nanoBananaExecutor";
+export { executeCameraAngleControl } from "./cameraAngleExecutor";
 
 export { executeGenerateVideo } from "./generateVideoExecutor";
 export type { GenerateVideoOptions } from "./generateVideoExecutor";

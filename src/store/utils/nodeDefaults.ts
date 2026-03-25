@@ -5,6 +5,7 @@ import {
   ImageInputNodeData,
   AudioInputNodeData,
   AnnotationNodeData,
+  CameraAngleControlNodeData,
   CommentNodeData,
   PromptNodeData,
   NanoBananaNodeData,
@@ -34,6 +35,7 @@ export const defaultNodeDimensions: Record<NodeType, { width: number; height: nu
   imageInput: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   audioInput: { width: 300, height: 200 },
   annotation: { width: 300, height: 280 },
+  cameraAngleControl: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   comment: { width: 420, height: 60 },
   prompt: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   generateImage: { width: SQUARE_SIZE, height: SQUARE_SIZE },
@@ -162,6 +164,35 @@ export const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         imageHistory: [],
         selectedHistoryIndex: 0,
       } as NanoBananaNodeData;
+    }
+    case "cameraAngleControl": {
+      const nodeDefaults = loadNodeDefaults();
+      const imgDefaults = nodeDefaults.cameraAngleControl ?? nodeDefaults.generateImage;
+      const models = imgDefaults?.selectedModels ?? (imgDefaults?.selectedModel ? [imgDefaults.selectedModel] : []);
+      const idx = imgDefaults?.defaultModelIndex ?? 0;
+      const selectedModel = models[idx] ?? models[0] ?? imgDefaults?.selectedModel;
+      return {
+        inputImages: [],
+        inputPrompt: null,
+        outputImage: null,
+        aspectRatio: imgDefaults?.aspectRatio ?? "1:1",
+        resolution: imgDefaults?.resolution ?? "2K",
+        model: "nano-banana-pro",
+        selectedModel,
+        useGoogleSearch: false,
+        useImageSearch: false,
+        status: "idle",
+        error: null,
+        imageHistory: [],
+        selectedHistoryIndex: 0,
+        cameraPrompt: "",
+        angleSettings: {
+          rotation: 0,
+          tilt: 0,
+          zoom: 100,
+          wideAngle: false,
+        },
+      } as CameraAngleControlNodeData;
     }
     case "generateVideo": {
       const nodeDefaults = loadNodeDefaults();

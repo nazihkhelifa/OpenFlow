@@ -17,6 +17,7 @@ export { TextNode, PromptNode } from "./text/TextNode";
 
 // Generate nodes
 export { ImageNode, GenerateImageNode, NanoBananaNode } from "./generate/ImageNode";
+export { CameraAngleControlNode } from "./generate/CameraAngleControlNode";
 export { VideoNode, GenerateVideoNode } from "./generate/VideoNode";
 export { ThreeDNode, Generate3DNode } from "./generate/ThreeDNode";
 export { AudioNode, GenerateAudioNode } from "./generate/AudioNode";

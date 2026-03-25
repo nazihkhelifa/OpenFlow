@@ -14,6 +14,7 @@ import {
   executeGlbViewer,
 } from "./simpleNodeExecutors";
 import { executeNanoBanana } from "./nanoBananaExecutor";
+import { executeCameraAngleControl } from "./cameraAngleExecutor";
 import { executeGenerateVideo } from "./generateVideoExecutor";
 import { executeGenerate3D } from "./generate3dExecutor";
 import { executeEaseCurve } from "./videoProcessingExecutors";
@@ -55,6 +56,9 @@ export async function executeNode(
       break;
     case "generateImage":
       await executeNanoBanana(ctx, regenOpts);
+      break;
+    case "cameraAngleControl":
+      await executeCameraAngleControl(ctx);
       break;
     case "generateVideo":
       await executeGenerateVideo(ctx, regenOpts);

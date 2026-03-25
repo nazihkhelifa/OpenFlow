@@ -51,6 +51,7 @@ export type NodeType =
   | "imageInput"
   | "audioInput"
   | "annotation"
+  | "cameraAngleControl"
   | "comment"
   | "prompt"
   | "generateImage"
@@ -189,6 +190,21 @@ export interface NanoBananaNodeData extends BaseNodeData {
   error: string | null;
   imageHistory: CarouselImageItem[]; // Carousel history (IDs only)
   selectedHistoryIndex: number; // Currently selected image in carousel
+}
+
+/**
+ * Camera Angle Control node - AI re-framing / viewpoint generation from image input.
+ */
+export interface CameraAngleControlNodeData extends NanoBananaNodeData {
+  /** Additional prompt to describe desired camera move/style. */
+  cameraPrompt: string;
+  /** Angle controls used to build the generation instruction. */
+  angleSettings: {
+    rotation: number;
+    tilt: number;
+    zoom: number;
+    wideAngle: boolean;
+  };
 }
 
 /**
@@ -382,6 +398,7 @@ export type WorkflowNodeData =
   | ImageInputNodeData
   | AudioInputNodeData
   | AnnotationNodeData
+  | CameraAngleControlNodeData
   | CommentNodeData
   | PromptNodeData
   | NanoBananaNodeData
@@ -451,6 +468,8 @@ export interface NodeDefaultsConfig {
   generateImage?: GenerateImageNodeDefaults;
   /** Dedicated defaults for image-upscale actions (tool-triggered). */
   generateImageUpscale?: GenerateImageNodeDefaults;
+  /** Dedicated defaults for camera-angle actions (tool-triggered). */
+  cameraAngleControl?: GenerateImageNodeDefaults;
   generateVideo?: GenerateVideoNodeDefaults;
   generate3d?: Generate3DNodeDefaults;
   generateAudio?: GenerateAudioNodeDefaults;

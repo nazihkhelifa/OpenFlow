@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, Settings } from "lucide-react";
@@ -10,10 +10,15 @@ import { StitchProjectsHero } from "@/components/projects/StitchProjectsHero";
 import type { ProjectsViewTab } from "@/components/projects/ProjectsStickyHeader";
 import { NewProjectModal } from "@/components/NewProjectModal";
 import { ProjectSetupModal } from "@/components/ProjectSetupModal";
+import { ProjectsOnboardingDialog } from "@/components/projects/ProjectsOnboardingDialog";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { useToast } from "@/components/Toast";
 import { createProject, updateProject } from "@/lib/local-db";
-import { getDefaultProjectDirectory } from "@/store/utils/localStorage";
+import {
+  getDefaultProjectDirectory,
+  hasSeenProjectsOnboarding,
+  setProjectsOnboardingSeen,
+} from "@/store/utils/localStorage";
 import { ensureProjectSubfolderPath } from "@/lib/project-directory-path";
 import { saveQueuedFlowyStartPrompt } from "@/lib/flowy/flowyPanelStorage";
 
@@ -45,6 +50,7 @@ export default function ProjectsPage() {
   const { show } = useToast();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showOnboardingDialog, setShowOnboardingDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ProjectsViewTab>("templates");
   const [pendingTemplateWorkflow, setPendingTemplateWorkflow] = useState<WorkflowFile | null>(null);
@@ -56,6 +62,12 @@ export default function ProjectsPage() {
     (state) => state.setUseExternalImageStorage
   );
   const UNTITLED_NAME = "untitled";
+
+  useEffect(() => {
+    if (!hasSeenProjectsOnboarding()) {
+      setShowOnboardingDialog(true);
+    }
+  }, []);
 
   const openNewProjectModal = (workflow: WorkflowFile | null) => {
     setPendingTemplateWorkflow(workflow);
@@ -245,6 +257,18 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-black text-[13px] leading-[1.35] text-white antialiased [-webkit-font-smoothing:antialiased]">
+      <ProjectsOnboardingDialog
+        isOpen={showOnboardingDialog}
+        onStart={() => {
+          setProjectsOnboardingSeen();
+          setShowOnboardingDialog(false);
+        }}
+        onOpenSetup={() => {
+          setProjectsOnboardingSeen();
+          setShowOnboardingDialog(false);
+          setShowSettingsModal(true);
+        }}
+      />
       <NewProjectModal
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}

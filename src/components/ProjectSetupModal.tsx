@@ -202,8 +202,8 @@ export function ProjectSetupModal({
   const [showVideoModelDialog, setShowVideoModelDialog] = useState(false);
   const [show3dModelDialog, setShow3dModelDialog] = useState(false);
   const [showAudioModelDialog, setShowAudioModelDialog] = useState(false);
-  const [imageModelDialogTarget, setImageModelDialogTarget] = useState<"generateImage" | "generateImageUpscale">("generateImage");
-  const [modelDialogReplace, setModelDialogReplace] = useState<{ key: "generateImage" | "generateImageUpscale" | "generateVideo" | "generate3d" | "generateAudio"; index: number } | null>(null);
+  const [imageModelDialogTarget, setImageModelDialogTarget] = useState<"generateImage" | "generateImageUpscale" | "cameraAngleControl">("generateImage");
+  const [modelDialogReplace, setModelDialogReplace] = useState<{ key: "generateImage" | "generateImageUpscale" | "cameraAngleControl" | "generateVideo" | "generate3d" | "generateAudio"; index: number } | null>(null);
 
   // Canvas tab state
   const [localCanvasSettings, setLocalCanvasSettings] = useState<CanvasNavigationSettings>(canvasNavigationSettings);
@@ -787,6 +787,29 @@ export function ProjectSetupModal({
                     return models.length > 0
                       ? models.map((m, i) => <option key={i} value={i}>{m.displayName}</option>)
                       : <option value={0}>Add upscale models in Node Defaults</option>;
+                  })()}
+                </select>
+              </div>
+              {/* Camera Angle default */}
+              <div className="flex items-center justify-between gap-4 py-2">
+                <label className="text-sm text-neutral-300 shrink-0 w-24">Camera Angle</label>
+                <select
+                  value={(() => {
+                    const models = localNodeDefaults.cameraAngleControl?.selectedModels ?? (localNodeDefaults.cameraAngleControl?.selectedModel ? [localNodeDefaults.cameraAngleControl.selectedModel] : []);
+                    const idx = localNodeDefaults.cameraAngleControl?.defaultModelIndex ?? 0;
+                    return models.length > 0 ? Math.min(idx, models.length - 1) : 0;
+                  })()}
+                  onChange={(e) => setLocalNodeDefaults(prev => ({
+                    ...prev,
+                    cameraAngleControl: { ...prev.cameraAngleControl, defaultModelIndex: parseInt(e.target.value, 10) },
+                  }))}
+                  className="flex-1 max-w-xs px-3 py-2 text-sm bg-neutral-800 border border-neutral-600 rounded-lg text-neutral-100 focus:outline-none focus:border-neutral-500"
+                >
+                  {(() => {
+                    const models = localNodeDefaults.cameraAngleControl?.selectedModels ?? (localNodeDefaults.cameraAngleControl?.selectedModel ? [localNodeDefaults.cameraAngleControl.selectedModel] : []);
+                    return models.length > 0
+                      ? models.map((m, i) => <option key={i} value={i}>{m.displayName}</option>)
+                      : <option value={0}>Add camera-angle models in Node Defaults</option>;
                   })()}
                 </select>
               </div>
@@ -1504,6 +1527,42 @@ export function ProjectSetupModal({
               </div>
             </div>
 
+            {/* Camera Angle Control Section */}
+            <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-neutral-100">Default Camera Angle Models</span>
+                <p className="text-xs text-neutral-500">Models used when clicking <span className="text-neutral-300">3D Camera Angle</span> on image toolbars.</p>
+                {(() => {
+                  const models = localNodeDefaults.cameraAngleControl?.selectedModels ?? (localNodeDefaults.cameraAngleControl?.selectedModel ? [localNodeDefaults.cameraAngleControl.selectedModel] : []);
+                  return (
+                    <div className="space-y-2">
+                      {models.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-2 bg-neutral-800/50 rounded">
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-300 min-w-0">
+                            {getProviderIcon(m.provider)}
+                            <span className="truncate">{m.displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button type="button" onClick={() => { setImageModelDialogTarget("cameraAngleControl"); setModelDialogReplace({ key: "cameraAngleControl", index: i }); setShowImageModelDialog(true); }} className="px-2 py-0.5 text-[10px] bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded">Change</button>
+                            <button type="button" onClick={() => {
+                              const arr = models.filter((_, j) => j !== i);
+                              setLocalNodeDefaults(prev => ({
+                                ...prev,
+                                cameraAngleControl: arr.length ? { ...prev.cameraAngleControl, selectedModels: arr } : undefined,
+                              }));
+                            }} className="text-neutral-500 hover:text-red-400 text-xs">×</button>
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => { setImageModelDialogTarget("cameraAngleControl"); setModelDialogReplace(null); setShowImageModelDialog(true); }} className="px-2 py-1 text-xs bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded transition-colors">
+                        {models.length ? "Add Model" : "Select Model"}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
             {/* Generate3D Section */}
             <div className="p-3 bg-neutral-900 rounded-lg border border-neutral-700">
               <div className="flex flex-col gap-2">
@@ -1860,8 +1919,18 @@ export function ProjectSetupModal({
             onClose={() => { setShowImageModelDialog(false); setModelDialogReplace(null); setImageModelDialogTarget("generateImage"); }}
             onModelSelected={(model: ProviderModel) => {
               const entry = { provider: model.provider, modelId: model.id, displayName: model.name };
-              const targetKey = modelDialogReplace?.key === "generateImageUpscale" ? "generateImageUpscale" : imageModelDialogTarget;
-              const targetDefaults = targetKey === "generateImageUpscale" ? localNodeDefaults.generateImageUpscale : localNodeDefaults.generateImage;
+              const targetKey =
+                modelDialogReplace?.key === "generateImageUpscale"
+                  ? "generateImageUpscale"
+                  : modelDialogReplace?.key === "cameraAngleControl"
+                    ? "cameraAngleControl"
+                    : imageModelDialogTarget;
+              const targetDefaults =
+                targetKey === "generateImageUpscale"
+                  ? localNodeDefaults.generateImageUpscale
+                  : targetKey === "cameraAngleControl"
+                    ? localNodeDefaults.cameraAngleControl
+                    : localNodeDefaults.generateImage;
               const models = targetDefaults?.selectedModels ?? (targetDefaults?.selectedModel ? [targetDefaults.selectedModel] : []);
               const rep = modelDialogReplace?.key === targetKey ? modelDialogReplace : null;
               const newModels = rep ? models.map((m, i) => i === rep.index ? entry : m) : [...models, entry];

@@ -20,6 +20,7 @@ export const RECENT_MODELS_KEY = "openflows-recent-models";
 export const NODE_DEFAULTS_KEY = "openflows-node-defaults";
 export const CANVAS_NAVIGATION_KEY = "openflows-canvas-navigation";
 export const DEFAULT_PROJECT_DIRECTORY_KEY = "openflows-default-project-directory";
+export const PROJECTS_ONBOARDING_SEEN_KEY = "openflows-projects-onboarding-seen";
 
 // Maximum recent models to store (show 4 in UI, keep 8 for persistence)
 export const MAX_RECENT_MODELS = 8;
@@ -245,6 +246,16 @@ export const setDefaultProjectDirectory = (path: string): void => {
   } else {
     localStorage.removeItem(DEFAULT_PROJECT_DIRECTORY_KEY);
   }
+};
+
+export const hasSeenProjectsOnboarding = (): boolean => {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(PROJECTS_ONBOARDING_SEEN_KEY) === "1";
+};
+
+export const setProjectsOnboardingSeen = (): void => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PROJECTS_ONBOARDING_SEEN_KEY, "1");
 };
 
 // Workflow ID generator

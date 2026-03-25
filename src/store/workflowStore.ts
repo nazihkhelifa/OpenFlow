@@ -70,6 +70,7 @@ import {
   executePrompt,
   executeImageCompare,
   executeNanoBanana,
+  executeCameraAngleControl,
   executeGenerateVideo,
   executeGenerate3D,
   executeGenerateAudio,
@@ -390,7 +391,7 @@ export { GROUP_COLORS } from "./utils/nodeDefaults";
 
 /** Node types whose output carries image data */
 const IMAGE_SOURCE_NODE_TYPES = new Set<string>([
-  "mediaInput", "imageInput", "annotation", "generateImage", "glbViewer",
+  "mediaInput", "imageInput", "annotation", "generateImage", "cameraAngleControl", "glbViewer",
 ]);
 
 /**
@@ -1169,6 +1170,9 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
           case "generateImage":
             await executeNanoBanana(executionCtx, { useStoredFallback: true });
             break;
+          case "cameraAngleControl":
+            await executeCameraAngleControl(executionCtx);
+            break;
           case "generateVideo":
             await executeGenerateVideo(executionCtx, { useStoredFallback: true });
             break;
@@ -1321,6 +1325,8 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
 
       if (node.type === "generateImage") {
         await executeNanoBanana(executionCtx, regenOptions);
+      } else if (node.type === "cameraAngleControl") {
+        await executeCameraAngleControl(executionCtx);
       } else if (node.type === "prompt") {
         await executePrompt(executionCtx);
       } else if (node.type === "generateVideo") {
@@ -1439,6 +1445,9 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
           break;
         case "generateImage":
           await executeNanoBanana(executionCtx, regenOptions);
+          break;
+        case "cameraAngleControl":
+          await executeCameraAngleControl(executionCtx);
           break;
         case "generateVideo":
           await executeGenerateVideo(executionCtx, regenOptions);

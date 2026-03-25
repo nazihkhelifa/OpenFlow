@@ -45,6 +45,7 @@ function validateProposalShape(data: unknown): string | null {
     "annotation",
     "prompt",
     "generateImage",
+    "cameraAngleControl",
     "generateVideo",
   ];
 

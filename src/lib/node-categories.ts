@@ -20,6 +20,7 @@ export const ALL_NODES_CATEGORIES: {
     label: "Generate",
     nodes: [
       { type: "generateImage", label: "Generate Image" },
+      { type: "cameraAngleControl", label: "Camera Angle Control" },
       { type: "generateVideo", label: "Generate Video" },
       { type: "generate3d", label: "Generate 3D" },
       { type: "generateAudio", label: "Generate Audio" },

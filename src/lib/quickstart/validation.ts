@@ -17,6 +17,7 @@ const VALID_NODE_TYPES: NodeType[] = [
   "imageInput",
   "audioInput",
   "annotation",
+  "cameraAngleControl",
   "prompt",
   "generateImage",
   "generateVideo",
@@ -37,6 +38,7 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { width: number; height: number }> = 
   imageInput: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   audioInput: { width: 300, height: 200 },
   annotation: { width: SQUARE_SIZE, height: SQUARE_SIZE },
+  cameraAngleControl: { width: SQUARE_SIZE, height: SQUARE_SIZE },
   comment: { width: 48, height: 48 },
   prompt: { width: 329, height: 371 },
   generateImage: { width: SQUARE_SIZE, height: SQUARE_SIZE },
@@ -263,6 +265,28 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         error: null,
         imageHistory: [],
         selectedHistoryIndex: 0,
+      };
+    case "cameraAngleControl":
+      return {
+        inputImages: [],
+        inputPrompt: null,
+        outputImage: null,
+        aspectRatio: "1:1",
+        resolution: "2K",
+        model: "nano-banana-pro",
+        useGoogleSearch: false,
+        useImageSearch: false,
+        status: "idle",
+        error: null,
+        imageHistory: [],
+        selectedHistoryIndex: 0,
+        cameraPrompt: "",
+        angleSettings: {
+          rotation: 0,
+          tilt: 0,
+          zoom: 100,
+          wideAngle: false,
+        },
       };
     case "generateVideo":
       return {
