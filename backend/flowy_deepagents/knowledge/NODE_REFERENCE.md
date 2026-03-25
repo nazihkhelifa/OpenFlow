@@ -71,9 +71,19 @@ Key data: `cameraPrompt`, `angleSettings` (`rotation`, `tilt`, `zoom`, `wideAngl
 ---
 
 ### `comment`
-- **No handles.** Purely a sticky note for canvas documentation.
-- Use for stage labels, user tips, lane headers, "run this first" notes.
+- **No handles.** Sticky note for canvas documentation and agent guidance.
 - Never wire into any edge.
+
+Key data fields:
+- `content`: array of `CommentEntry` objects `{ id, text, author, authorType, date }`
+- `resolved`: boolean — marks thread as resolved (visual green state, not deleted)
+- `resolvedAt`: ISO timestamp of resolution
+
+`CommentEntry.authorType`:
+- `"user"` (default): neutral avatar, human comment
+- `"agent"`: indigo star avatar — used when the Flowy AI agent leaves a note
+
+To create an agent guidance note, use `addNode` with `nodeType: "comment"` and set `author: "Flowy"`, `authorType: "agent"` in the content entry.
 
 ---
 

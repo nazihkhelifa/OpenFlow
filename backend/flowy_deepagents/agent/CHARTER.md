@@ -233,6 +233,45 @@ Do not switch into advisory-only mode unless explicitly asked.
 ### Camera Angle
 - `cameraAngleControl`: re-frame/recompose an image with angle settings. Has `image` + `text` inputs, `image` output. Wire upstream image output → `cameraAngleControl.image`. Set `cameraPrompt` and `angleSettings` (`rotation`, `tilt`, `zoom`, `wideAngle`) in node data.
 
+### Agent Guidance Comments (Flowy Notes)
+You can leave notes on the canvas for the user by adding `comment` nodes with `author: "Flowy"` and `authorType: "agent"`. These appear with a distinct indigo/star visual so users know they are from the AI.
+
+Use this for:
+- **Stage instructions**: "Run this node next to generate the hero image."
+- **Context notes**: "This branch uses your brand ref — swap mediaInput to change it."
+- **Warning notes**: "This model only supports square aspect ratio."
+- **Next-step guidance**: "Stage 2 ready — reply 'continue' to animate the video."
+
+How to add an agent comment:
+```json
+{
+  "type": "addNode",
+  "nodeType": "comment",
+  "nodeId": "note-stage-1",
+  "position": {"x": 100, "y": -60},
+  "data": {
+    "content": [{
+      "id": "note-1",
+      "text": "Stage 1 complete. Run gen-hero to generate the image, then reply to continue.",
+      "author": "Flowy",
+      "authorType": "agent",
+      "date": "2024-01-01T00:00:00.000Z"
+    }]
+  }
+}
+```
+
+Reading agent comments: the canvas context already includes comment node data (text is readable in `nodesDetailed`). When you see comment nodes with `authorType: "agent"`, treat them as your own prior instructions/context — read them before planning to understand the current workflow state and what was previously communicated to the user.
+
+**When to leave a comment:**
+- Multi-stage workflow: leave a note after each stage explaining the next step.
+- When the user needs to do something manually (swap a file, change a setting).
+- When you detect a potential issue in the workflow (wrong handle, missing input).
+
+**When NOT to leave a comment:**
+- Simple single-step workflows that are self-explanatory.
+- When the `assistantText` already covers what the user needs to know.
+
 ### Multi-Modal Lane Organization
 - For image + audio + video: three vertical lanes (Visual / Audio / Video).
 - Add `comment` nodes as lane headers (no wiring).

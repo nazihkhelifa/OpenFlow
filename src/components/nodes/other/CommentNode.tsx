@@ -1,9 +1,9 @@
 "use client";
 
-import { type FormEventHandler, useState } from "react";
+import { type FormEventHandler, useRef, useState } from "react";
 import { NodeProps, Node } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
-import type { CommentNodeData } from "@/types";
+import type { CommentEntry, CommentNodeData } from "@/types";
 
 type CommentNodeType = Node<CommentNodeData, "comment">;
 
@@ -25,71 +25,133 @@ function getInitials(author: string) {
 }
 
 const DEFAULT_AUTHOR = "User";
+const AGENT_AUTHOR = "Flowy";
+
+function isAgentEntry(entry: CommentEntry) {
+  return entry.authorType === "agent" || entry.author === AGENT_AUTHOR;
+}
+
+/** Avatar circle — indigo for agent, neutral for user */
+function Avatar({ entry, size = "md" }: { entry: CommentEntry; size?: "sm" | "md" }) {
+  const agent = isAgentEntry(entry);
+  const dim = size === "sm" ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs";
+  if (agent) {
+    return (
+      <div
+        className={`${dim} shrink-0 rounded-full bg-indigo-700 flex items-center justify-center text-indigo-100 ring-1 ring-indigo-500`}
+        title="Flowy AI"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" className={size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5"}>
+          <path d="M8 1l1.545 4.755H15l-4.045 2.94 1.545 4.755L8 10.51l-4.5 2.94 1.545-4.755L1 5.755h5.455z" />
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <div className={`${dim} shrink-0 rounded-full bg-neutral-600 flex items-center justify-center text-neutral-300 ring-1 ring-neutral-500`}>
+      {getInitials(entry.author || DEFAULT_AUTHOR)}
+    </div>
+  );
+}
 
 export function CommentNode({ data, id, selected = false }: NodeProps<CommentNodeType>) {
   const [inputValue, setInputValue] = useState("");
+  const [replyValue, setReplyValue] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const nodes = useWorkflowStore((state) => state.nodes);
-  const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
-  const removeNode = useWorkflowStore((state) => state.removeNode);
-  const onNodesChange = useWorkflowStore((state) => state.onNodesChange);
+  const replyInputRef = useRef<HTMLInputElement>(null);
 
-  const comments = data.content
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const removeNode = useWorkflowStore((s) => s.removeNode);
+  const onNodesChange = useWorkflowStore((s) => s.onNodesChange);
+
+  const entries: CommentEntry[] = data.content
     ? Array.isArray(data.content)
       ? data.content
-      : [data.content]
+      : [data.content as CommentEntry]
     : [];
-  const displayComment = comments.length > 0 ? comments[comments.length - 1] : null;
 
-  const handleStartEdit = () => {
-    if (displayComment) {
-      setEditValue(displayComment.text);
-      setIsEditing(true);
-    }
+  const resolved = Boolean(data.resolved);
+  const latestEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  const handleSubmitNew: FormEventHandler<HTMLFormElement> = (e) => {
+    e.preventDefault();
+    const text = inputValue.trim();
+    if (!text || loading) return;
+    setLoading(true);
+    const newEntry: CommentEntry = {
+      id: `comment-${Date.now()}`,
+      text,
+      author: DEFAULT_AUTHOR,
+      authorType: "user",
+      date: new Date().toISOString(),
+    };
+    updateNodeData(id, { content: [newEntry] });
+    setInputValue("");
+    setLoading(false);
+  };
+
+  const handleSubmitReply: FormEventHandler<HTMLFormElement> = (e) => {
+    e.preventDefault();
+    const text = replyValue.trim();
+    if (!text || loading) return;
+    setLoading(true);
+    const newEntry: CommentEntry = {
+      id: `comment-${Date.now()}`,
+      text,
+      author: DEFAULT_AUTHOR,
+      authorType: "user",
+      date: new Date().toISOString(),
+    };
+    updateNodeData(id, { content: [...entries, newEntry] });
+    setReplyValue("");
+    setLoading(false);
+  };
+
+  const handleStartEdit = (entry: CommentEntry) => {
+    setEditTargetId(entry.id);
+    setEditValue(entry.text);
+    setIsEditing(true);
   };
 
   const handleSaveEdit = () => {
-    if (!editValue.trim() || !displayComment || loading) return;
+    if (!editValue.trim() || !editTargetId || loading) return;
     setLoading(true);
-    const currentComments = Array.isArray(data.content) ? data.content : data.content ? [data.content] : [];
-    const updated = [...currentComments];
-    if (updated.length > 0) {
-      updated[updated.length - 1] = { ...updated[updated.length - 1], text: editValue.trim() };
-    }
+    const updated = entries.map((e) =>
+      e.id === editTargetId ? { ...e, text: editValue.trim() } : e
+    );
     updateNodeData(id, { content: updated });
     setIsEditing(false);
     setEditValue("");
+    setEditTargetId(null);
     setLoading(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditValue("");
+    setEditTargetId(null);
   };
 
   const handleResolve = () => {
+    updateNodeData(id, { resolved: true, resolvedAt: new Date().toISOString() });
+  };
+
+  const handleUnresolve = () => {
+    updateNodeData(id, { resolved: false, resolvedAt: undefined });
+  };
+
+  const handleDelete = () => {
     removeNode(id);
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || loading) return;
-    setLoading(true);
-    const newComment = {
-      id: `comment-${Date.now()}`,
-      text: inputValue.trim(),
-      author: DEFAULT_AUTHOR,
-      date: new Date().toISOString(),
-    };
-    const currentComments = Array.isArray(data.content) ? data.content : data.content ? [data.content] : [];
-    updateNodeData(id, { content: [...currentComments, newComment] });
-    setInputValue("");
-    setLoading(false);
-  };
-
-  const handleAvatarClick = () => {
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (selected) {
       onNodesChange([{ type: "select", id, selected: false }]);
     } else {
@@ -101,16 +163,17 @@ export function CommentNode({ data, id, selected = false }: NodeProps<CommentNod
     }
   };
 
-  if (comments.length === 0) {
+  // ── empty state ────────────────────────────────────────────────────────────
+
+  if (entries.length === 0) {
+    const ghostEntry: CommentEntry = { id: "ghost", text: "", author: DEFAULT_AUTHOR, authorType: "user", date: new Date().toISOString() };
     return (
       <div className="relative p-3 rounded-2xl bg-neutral-800 ring-1 ring-neutral-600 min-w-[320px] w-full overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex items-center gap-3 min-w-0">
-          <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-600 flex items-center justify-center text-neutral-300 text-xs">
-            {getInitials(DEFAULT_AUTHOR)}
-          </div>
+        <form onSubmit={handleSubmitNew} className="flex items-center gap-3 min-w-0">
+          <Avatar entry={ghostEntry} />
           <input
             type="text"
-            placeholder="Leave a comment"
+            placeholder="Leave a comment…"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             className="flex-1 min-w-0 rounded-xl bg-neutral-700 border border-neutral-600 px-3 py-1.5 text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
@@ -118,7 +181,7 @@ export function CommentNode({ data, id, selected = false }: NodeProps<CommentNod
           />
           <button
             type="submit"
-            className="h-8 w-8 rounded-full shrink-0 bg-white text-neutral-900 flex items-center justify-center hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 w-8 rounded-full shrink-0 bg-white text-neutral-900 flex items-center justify-center hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             disabled={loading || !inputValue.trim()}
           >
             {loading ? (
@@ -137,7 +200,16 @@ export function CommentNode({ data, id, selected = false }: NodeProps<CommentNod
     );
   }
 
-  const commentAuthor = (displayComment as { author?: string })?.author || DEFAULT_AUTHOR;
+  // ── bubble ring color based on state ──────────────────────────────────────
+
+  const isAgentComment = latestEntry ? isAgentEntry(latestEntry) : false;
+  const ringClass = resolved
+    ? "ring-green-700"
+    : isAgentComment
+    ? "ring-indigo-600"
+    : "ring-neutral-600";
+
+  // ── has content ────────────────────────────────────────────────────────────
 
   return (
     <div className="group relative" data-id="comment-body" data-state={selected ? "open" : "closed"}>
@@ -145,113 +217,222 @@ export function CommentNode({ data, id, selected = false }: NodeProps<CommentNod
         className={`absolute -left-3 -top-3 ${selected ? "pointer-events-auto" : "pointer-events-none group-hover:pointer-events-auto"}`}
         data-id="comment-body-open"
       >
+        {/* ── top toolbar ── */}
         {selected && (
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 pb-2 pointer-events-auto">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 pb-2 pointer-events-auto z-10">
             <div className="flex h-10 items-center rounded-2xl bg-neutral-800 ring-1 ring-neutral-600 px-1 gap-0.5">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleResolve();
-                }}
-                className="h-8 w-8 flex items-center justify-center rounded-2xl text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors"
-                title="Resolve (delete)"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21.801 10A10 10 0 1 1 17 3.335" />
-                  <path d="m9 11 3 3L22 4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStartEdit();
-                }}
-                className="h-8 w-8 flex items-center justify-center rounded-xl text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors"
-                title="Edit"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                </svg>
-              </button>
+              {resolved ? (
+                <>
+                  {/* Unresolve */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleUnresolve(); }}
+                    className="h-8 px-2.5 flex items-center gap-1.5 rounded-2xl text-green-400 hover:bg-neutral-700 hover:text-green-300 transition-colors text-xs font-medium"
+                    title="Unresolve"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                    </svg>
+                    Unresolve
+                  </button>
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                    className="h-8 w-8 flex items-center justify-center rounded-xl text-neutral-400 hover:bg-red-900/40 hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+                    </svg>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Resolve */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleResolve(); }}
+                    className="h-8 w-8 flex items-center justify-center rounded-2xl text-neutral-300 hover:bg-neutral-700 hover:text-green-400 transition-colors"
+                    title="Mark resolved"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+                      <path d="m9 11 3 3L22 4" />
+                    </svg>
+                  </button>
+                  {/* Edit latest */}
+                  {latestEntry && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleStartEdit(latestEntry); }}
+                      className="h-8 w-8 flex items-center justify-center rounded-xl text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors"
+                      title="Edit"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
+                    </button>
+                  )}
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                    className="h-8 w-8 flex items-center justify-center rounded-xl text-neutral-400 hover:bg-red-900/40 hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+                    </svg>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
 
+        {/* ── expanded bubble ── */}
         <div
-          className={`flex gap-2 rounded-2xl p-3 pb-4 transition-transform w-64 bg-neutral-800 ring-1 ring-neutral-600 ${
-            selected ? "scale-100 w-fit min-w-64 max-w-[28rem]" : "scale-0 group-hover:scale-100 origin-[2rem_2rem]"
-          }`}
+          className={`flex flex-col gap-0 rounded-2xl transition-transform bg-neutral-800 ring-1 ${ringClass} ${
+            selected ? "scale-100 w-fit min-w-[16rem] max-w-[28rem]" : "scale-0 group-hover:scale-100 origin-[2rem_2rem] w-64"
+          } ${resolved ? "opacity-75" : ""}`}
         >
-          <div className="h-8 w-8 shrink-0" />
-          <div className="flex flex-col gap-0.5 text-neutral-100 min-w-0 flex-1">
-            {isEditing ? (
-              <div className="flex flex-col gap-2">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="w-full rounded-xl bg-neutral-700 border border-neutral-600 px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                  disabled={loading}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSaveEdit();
-                    } else if (e.key === "Escape") {
-                      handleCancelEdit();
-                    }
-                  }}
-                />
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="h-7 px-2 text-sm text-neutral-400 hover:text-neutral-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    disabled={loading || !editValue.trim()}
-                    className="h-7 px-2 text-sm bg-white text-neutral-900 rounded hover:bg-neutral-200 disabled:opacity-50"
-                  >
-                    Save
-                  </button>
+          {/* thread entries */}
+          <div className="flex flex-col gap-0 px-3 pt-3 pb-2">
+            {entries.map((entry, idx) => {
+              const agent = isAgentEntry(entry);
+              const isEditingThis = isEditing && editTargetId === entry.id;
+
+              return (
+                <div key={entry.id} className={`flex gap-2 ${idx > 0 ? "mt-3 pt-3 border-t border-neutral-700" : ""}`}>
+                  <div className="shrink-0 pt-0.5">
+                    <Avatar entry={entry} />
+                  </div>
+                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-h-5">
+                      <span className={`text-xs font-medium truncate ${agent ? "text-indigo-300" : "text-neutral-200"}`}>
+                        {entry.author || DEFAULT_AUTHOR}
+                      </span>
+                      {agent && (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-900/60 text-indigo-300 font-medium leading-none">
+                          AI
+                        </span>
+                      )}
+                      <span className="shrink-0 text-neutral-500 text-[11px] ml-auto">
+                        {getTimeAgo(entry.date)}
+                      </span>
+                    </div>
+
+                    {isEditingThis ? (
+                      <div className="flex flex-col gap-1.5 mt-1">
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="w-full rounded-lg bg-neutral-700 border border-neutral-600 px-2.5 py-1.5 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+                          disabled={loading}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
+                            else if (e.key === "Escape") handleCancelEdit();
+                          }}
+                        />
+                        <div className="flex gap-1.5 justify-end">
+                          <button type="button" onClick={handleCancelEdit} className="h-6 px-2 text-xs text-neutral-400 hover:text-neutral-100">
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={loading || !editValue.trim()}
+                            className="h-6 px-2.5 text-xs bg-white text-neutral-900 rounded-lg hover:bg-neutral-200 disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className={`text-sm text-neutral-100 pr-2 ${
+                          selected ? "whitespace-pre-wrap break-words" : "line-clamp-3"
+                        } ${resolved ? "line-through decoration-neutral-500 text-neutral-400" : ""}`}
+                      >
+                        {entry.text}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex min-h-6 gap-2 overflow-hidden">
-                  <span className="whitespace-nowrap truncate">{commentAuthor}</span>
-                  <span className="shrink-0 whitespace-nowrap text-neutral-500 text-xs">
-                    {displayComment ? getTimeAgo(displayComment.date) : ""}
-                  </span>
-                </div>
-                <div
-                  className={`min-h-6 pr-4 ${
-                    selected ? "max-h-[640px] overflow-y-auto whitespace-pre-wrap break-words" : "line-clamp-3"
-                  }`}
-                >
-                  {displayComment?.text || ""}
-                </div>
-              </>
-            )}
+              );
+            })}
           </div>
+
+          {/* resolved badge */}
+          {resolved && (
+            <div className="flex items-center gap-1.5 px-3 py-2 border-t border-neutral-700 text-green-500 text-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21.801 10A10 10 0 1 1 17 3.335" /><path d="m9 11 3 3L22 4" />
+              </svg>
+              Resolved
+              {data.resolvedAt && (
+                <span className="text-neutral-500 ml-1">{getTimeAgo(data.resolvedAt)}</span>
+              )}
+            </div>
+          )}
+
+          {/* reply input (shown when selected and not resolved) */}
+          {selected && !resolved && (
+            <form
+              onSubmit={handleSubmitReply}
+              className="flex items-center gap-2 px-3 py-2 border-t border-neutral-700"
+            >
+              <input
+                ref={replyInputRef}
+                type="text"
+                placeholder="Reply…"
+                value={replyValue}
+                onChange={(e) => setReplyValue(e.target.value)}
+                className="flex-1 min-w-0 rounded-lg bg-neutral-700 border border-neutral-600 px-2.5 py-1.5 text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                className="h-7 w-7 rounded-full shrink-0 bg-white text-neutral-900 flex items-center justify-center hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={loading || !replyValue.trim()}
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
+      {/* ── collapsed avatar pill ── */}
       <div
-        className="relative h-8 w-8 shrink-0 rounded-full border border-neutral-600 p-px cursor-pointer overflow-hidden bg-neutral-700 flex items-center justify-center text-neutral-300 text-xs hover:border-neutral-500 transition-colors"
+        className={`relative h-8 w-8 shrink-0 rounded-full border p-px cursor-pointer overflow-hidden flex items-center justify-center transition-colors ${
+          resolved
+            ? "border-green-700 bg-green-900/40 text-green-300"
+            : isAgentComment
+            ? "border-indigo-600 bg-indigo-900/60 text-indigo-200"
+            : "border-neutral-600 bg-neutral-700 text-neutral-300 hover:border-neutral-500"
+        }`}
         data-id="comment-avatar"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleAvatarClick();
-        }}
+        onClick={handleAvatarClick}
+        title={resolved ? "Resolved" : isAgentComment ? "Flowy AI comment" : "Comment"}
       >
-        {getInitials(commentAuthor)}
+        {resolved ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="m5 12 5 5L20 7" />
+          </svg>
+        ) : isAgentComment ? (
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+            <path d="M8 1l1.545 4.755H15l-4.045 2.94 1.545 4.755L8 10.51l-4.5 2.94 1.545-4.755L1 5.755h5.455z" />
+          </svg>
+        ) : (
+          <span className="text-xs">{getInitials(latestEntry?.author || DEFAULT_AUTHOR)}</span>
+        )}
       </div>
     </div>
   );

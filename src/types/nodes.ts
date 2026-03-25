@@ -360,24 +360,27 @@ export interface ConditionalSwitchNodeData extends BaseNodeData {
 }
 
 /**
- * Comment node - canvas annotations/notes (non-executable)
+ * A single comment entry within a comment node thread.
+ */
+export interface CommentEntry {
+  id: string;
+  text: string;
+  author: string;
+  /** "agent" marks comments left by the Flowy AI agent; "user" is the default. */
+  authorType?: "user" | "agent";
+  authorAvatar?: string;
+  date: string;
+}
+
+/**
+ * Comment node - canvas annotations/notes (non-executable).
+ * Supports multi-comment threads, soft-resolved state, and agent-authored entries.
  */
 export interface CommentNodeData extends BaseNodeData {
-  content?:
-    | {
-        id: string;
-        text: string;
-        author: string;
-        authorAvatar?: string;
-        date: string;
-      }
-    | Array<{
-        id: string;
-        text: string;
-        author: string;
-        authorAvatar?: string;
-        date: string;
-      }>;
+  content?: CommentEntry | Array<CommentEntry>;
+  /** When true the comment thread is marked resolved (visually distinct, not deleted). */
+  resolved?: boolean;
+  resolvedAt?: string;
   updatedAt?: string;
 }
 
