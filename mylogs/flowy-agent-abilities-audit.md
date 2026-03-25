@@ -265,6 +265,102 @@ Fix:
 
 ---
 
+## Iteration 4 — Canvas Audit + Folder Restructure (2026-03-25)
+
+### Codebase audit findings
+Full audit of all canvas nodes, handles, toolbars, connection rules, and execution behavior.
+
+Key corrections discovered vs prior agent prompts:
+- `annotation` is a **LayerEditorNode** (image input → annotated image output). It is NOT a text label node.
+- `comment` (CommentNode) is the sticky note / documentation node with NO handles.
+- All prior agent files had `annotation` referenced as a documentation label — this was incorrect.
+- `cameraAngleControl` exists as a registered canvas node but was missing from the agent allowlist.
+- `imageCompare` uses handles `image` and `image-1` (not just `image`).
+- `switch` target handle is `generic-input`, not a typed handle.
+- `generateVideo` and `generate3d` have schema-driven indexed handles (`image-0`, `image-1`, `text-0`, `text-1`).
+- `easeCurve` has a full list of named presets (linear, easeInSine, spring, etc.) — not just "custom".
+- `conditionalSwitch` rule modes are: `exact`, `contains`, `starts-with`, `ends-with`.
+- `mediaInput` output handle is dynamic based on `mode` (image/audio/video).
+- `router` creates dynamic handles per active connected type.
+
+### Folder restructure applied
+Old flat structure:
+```
+flowy_deepagents/
+  AGENTS.md
+  ROUTER.md
+  PLAN_ADVISOR.md
+  GOAL_DECOMPOSER.md
+  WORKFLOW_TEMPLATES.md
+  skills/flowy-plan/SKILL.md
+  tests/
+  canvas_context.py
+  connection_validation.py
+  content_writer.py
+  subagents.yaml
+```
+
+New professional structure:
+```
+flowy_deepagents/
+  agent/
+    CHARTER.md          # was AGENTS.md — rewritten with corrections
+    ROUTER.md           # routing classification
+    PLAN_ADVISOR.md     # advisory chat mode
+  knowledge/
+    NODE_REFERENCE.md   # NEW: complete canonical node/handle/toolbar inventory
+    WORKFLOW_PATTERNS.md # was WORKFLOW_TEMPLATES.md — rewritten with corrections
+    GOAL_DECOMPOSER.md  # goal decomposition with examples (moved)
+  skills/flowy-plan/SKILL.md
+  tests/
+    test_canvas_control_policy.py
+    test_intent_signals_validation.py
+    test_operation_optimizer.py
+  canvas_context.py
+  connection_validation.py
+  content_writer.py
+  subagents.yaml
+```
+
+### New file: knowledge/NODE_REFERENCE.md
+Complete canonical inventory sourced directly from the codebase:
+- All 15 registered node types with exact roles and component names
+- Every handle ID per node with direction, type, and connection rules
+- Toolbar actions per node (with enabled/disabled status)
+- Connection rules matrix (what source type can connect to what target)
+- Group colors and semantics
+- Execution behavior (which nodes are no-ops vs executeable)
+- Model defaults from planner_schema.json
+
+### content_writer.py path updates
+- `AGENTS.md` → `agent/CHARTER.md`
+- `WORKFLOW_TEMPLATES.md` → `knowledge/WORKFLOW_PATTERNS.md`
+- `GOAL_DECOMPOSER.md` → `knowledge/GOAL_DECOMPOSER.md`
+- `ROUTER.md` → `agent/ROUTER.md`
+- `PLAN_ADVISOR.md` → `agent/PLAN_ADVISOR.md`
+- `NODE_REFERENCE.md` now loaded into system prompt (injected between CHARTER and WORKFLOW_PATTERNS)
+
+### agent/CHARTER.md corrections vs old AGENTS.md
+- Added `cameraAngleControl` to allowed node types
+- Corrected `annotation` description (LayerEditorNode, image I/O, not a label)
+- Corrected documentation guidance: use `comment` for labels, NOT `annotation`
+- Added `cameraAngleControl` to Advanced Node Usage section
+- Added correct handle types for `imageCompare` (`image`, `image-1`)
+- Added `generic-input` target handle for `switch`
+- Added schema-indexed handles (`image-0`, `text-0`) for schema-driven nodes
+- Expanded easing preset list
+- Added conditionalSwitch rule modes
+- Updated validation checklist to 12 items
+
+### knowledge/WORKFLOW_PATTERNS.md corrections vs old WORKFLOW_TEMPLATES.md
+- All "annotation nodes as stage labels" replaced with "comment nodes"
+- Added Pattern 18: Image Annotation / Overlay Layer (correct `annotation` usage)
+- Added Pattern 19: Camera Angle Reframe (using `cameraAngleControl`)
+- Fixed `imageCompare` wiring to use `image` and `image-1`
+- Corrected execution targets list (annotation removed, it renders inline)
+
+---
+
 ## Iteration 3 — Pro Workflow Engineer Upgrade (2026-03-25)
 
 Goal: make the agent capable of creating ANY type of workflow a user may ask for — acting as a senior workflow developer/engineer.

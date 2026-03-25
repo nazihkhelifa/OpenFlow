@@ -287,7 +287,7 @@ def _decompose_goal(
     Run the goal decomposer to split complex goals into ordered stages.
     Returns None if decomposition is not needed or fails.
     """
-    decomposer_md = _read_text_file("GOAL_DECOMPOSER.md").strip()
+    decomposer_md = _read_text_file(os.path.join("knowledge", "GOAL_DECOMPOSER.md")).strip()
     if not decomposer_md:
         return None
 
@@ -1391,10 +1391,14 @@ def _read_text_file(rel_path: str) -> str:
 
 
 def _build_system_prompt() -> str:
-    agents_md = _read_text_file("AGENTS.md").strip()
+    agents_md = _read_text_file(os.path.join("agent", "CHARTER.md")).strip()
     skill_md = _read_text_file(os.path.join("skills", "flowy-plan", "SKILL.md")).strip()
-    templates_md = _read_text_file("WORKFLOW_TEMPLATES.md").strip()
+    templates_md = _read_text_file(os.path.join("knowledge", "WORKFLOW_PATTERNS.md")).strip()
+    node_ref_md = _read_text_file(os.path.join("knowledge", "NODE_REFERENCE.md")).strip()
     base = agents_md + ("\n\nSkill:\n" + skill_md if skill_md else "")
+
+    if node_ref_md:
+        base += "\n\n" + node_ref_md
 
     if templates_md:
         base += "\n\n" + templates_md
@@ -1473,7 +1477,7 @@ def _classify_user_intent(
     if not msg:
         return None
 
-    router_md = _read_text_file("ROUTER.md").strip()
+    router_md = _read_text_file(os.path.join("agent", "ROUTER.md")).strip()
     if not router_md:
         return None
 
@@ -1868,7 +1872,7 @@ def _run_plan_advisor_only(
     canvas_state_memory: Optional[Dict[str, Any]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    advisor = _read_text_file("PLAN_ADVISOR.md").strip()
+    advisor = _read_text_file(os.path.join("agent", "PLAN_ADVISOR.md")).strip()
     if not advisor:
         advisor = "You are a workflow chat advisor. Advise only; do not claim canvas edits."
     system_prompt = advisor + "\n\nReturn ONLY JSON: {\"assistantText\": \"...\"}."
@@ -2045,12 +2049,12 @@ def _run_prompt_specialist_stage(
     elif wants_chain:
         hints.append("Topology: serial chain. Each stage uses the prior output as input. Execute stage by stage.")
     elif wants_conditional:
-        hints.append("Topology: conditional. Use router/switch/conditionalSwitch node for branching logic. Add annotation nodes to document routing rules.")
+        hints.append("Topology: conditional. Use router/switch/conditionalSwitch node for branching logic. Add comment nodes (no handles) to document routing rules.")
     else:
         hints.append("Topology: single pipeline. Minimal straight-line workflow unless user specifies otherwise.")
 
     if wants_annotate or node_count >= 6:
-        hints.append("Add annotation nodes as stage labels for readability. Use comment nodes for per-node tips.")
+        hints.append("Add comment nodes (no handles, no wiring) as stage labels for readability. annotation nodes are image-processing layer editors — use comment for pure documentation.")
 
     # ── 4. Execution intent hints ─────────────────────────────────────────────
     if intent_signals is not None:
