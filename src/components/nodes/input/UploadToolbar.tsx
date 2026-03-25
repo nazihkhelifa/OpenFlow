@@ -377,9 +377,9 @@ export function UploadToolbar({
                   </button>
 
                   {/* Inpaint */}
-                  <button
-                    type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  <div
+                    role="group"
+                    className="relative flex h-10 select-none items-center rounded-xl p-2"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -397,7 +397,7 @@ export function UploadToolbar({
                       </div>
                       <span className="flex-1">Inpaint</span>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Outpaint */}
                   <button
@@ -436,9 +436,9 @@ export function UploadToolbar({
                   </button>
 
                   {/* Split into layers */}
-                  <button
-                    type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  <div
+                    role="group"
+                    className="relative flex h-10 select-none items-center rounded-xl p-2"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -463,12 +463,12 @@ export function UploadToolbar({
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Split into grid */}
-                  <button
-                    type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  <div
+                    role="group"
+                    className="relative flex h-10 select-none items-center rounded-xl p-2"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -499,14 +499,14 @@ export function UploadToolbar({
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </>
               ) : (
                 <>
                   {/* Video: Upscale */}
-                  <button
-                    type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  <div
+                    role="group"
+                    className="relative flex h-10 select-none items-center rounded-xl p-2"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -527,12 +527,12 @@ export function UploadToolbar({
                       </div>
                       <span className="flex-1">Upscale</span>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Extract frame → new Upload (image), like split grid */}
-                  <button
-                    type="button"
-                    className="relative flex h-10 cursor-pointer select-none items-center rounded-xl p-2 outline-none hover:bg-white/5"
+                  <div
+                    role="group"
+                    className="relative flex h-10 select-none items-center rounded-xl p-2"
                   >
                     <div className="flex flex-1 items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-800 p-1.5">
@@ -568,7 +568,7 @@ export function UploadToolbar({
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Remove background (video thumbnail / frames) */}
                   <button
