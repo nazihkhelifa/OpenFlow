@@ -987,10 +987,10 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
 
       {/* Handles rendered outside overflow-hidden so they stay connectable after Replace */}
       {mode === "image" && (
-        <Handle type="target" position={Position.Left} id="reference" data-handletype="reference" className="!bg-gray-500" />
+        <Handle type="target" position={Position.Left} id="reference" data-handletype="reference" />
       )}
       {mode === "audio" && (
-        <Handle type="target" position={Position.Left} id="audio" data-handletype="audio" style={{ background: "rgba(255, 255, 255, 0.9)" }} />
+        <Handle type="target" position={Position.Left} id="audio" data-handletype="audio" />
       )}
       {mode === "3d" && (
         <Handle type="target" position={Position.Left} id="3d" data-handletype="3d" style={{ top: "50%" }} />
@@ -1000,15 +1000,6 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
         position={Position.Right}
         id={outputHandle.id}
         data-handletype={outputHandle.type}
-        style={
-          outputHandle.type === "audio"
-            ? { background: "rgb(167, 139, 250)" }
-            : outputHandle.type === "video"
-              ? { background: "rgb(251, 191, 36)" }
-              : outputHandle.type === "image"
-                ? { background: "#e5e5e5" }
-                : undefined
-        }
       />
     </>
   );
