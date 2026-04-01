@@ -498,7 +498,13 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
     openViewer(items, index >= 0 ? index : 0);
   }, [getNodes, id, mode, resolvedImageUrl, nodeData.videoFile, openViewer]);
 
-  const hasContent = !!(nodeData.image || nodeData.audioFile || nodeData.videoFile || nodeData.glbUrl);
+  const hasContent = !!(
+    nodeData.image ||
+    nodeData.imageRef ||
+    nodeData.audioFile ||
+    nodeData.videoFile ||
+    nodeData.glbUrl
+  );
 
   const setCropMode = useCallback(
     (next: boolean) => {
@@ -597,7 +603,7 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
   const outputHandle = getOutputHandle();
 
   return (
-    <>
+    <div className="relative h-full min-h-0 w-full">
       {hasContent && (mode === "image" || mode === "video") && (
         <UploadToolbar
           nodeId={id}
@@ -688,61 +694,63 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
       {/* Image mode */}
       {hasContent && mode === "image" && (
         <>
-          {nodeData.image ? (
+          {resolvedImageUrl ? (
             <div className="relative group flex-1 min-h-0 min-w-0 overflow-hidden">
-              {resolvedImageUrl ? (
-                <>
-                  <img
-                    src={resolvedImageUrl}
-                    alt={displayFilename || "Uploaded image"}
-                    className={`w-full h-full object-cover ${cropActive ? "z-[999]" : "rounded-[12px]"}`}
-                  />
-                  {cropActive && (
-                    <ImageCropOverlay
-                      imageUrl={resolvedImageUrl}
-                      onCancel={() => setCropMode(false)}
-                      onApply={(cropped, dims) => {
-                        const node = getNode(id);
-                        const baseX =
-                          (node?.position.x ?? 0) +
-                          (typeof node?.style?.width === "number" ? (node!.style!.width as number) : 300) +
-                          80;
-                        const baseY = node?.position.y ?? 0;
-                        const newId = addNode(
-                          "mediaInput",
-                          { x: baseX, y: baseY },
-                          {
-                            mode: "image",
-                            image: cropped,
-                            imageRef: undefined,
-                            dimensions: dims,
-                            filename: displayFilename ? `${displayFilename}-crop.png` : "crop.png",
-                          }
-                        );
-                        addEdgeWithType(
-                          {
-                            source: id,
-                            target: newId,
-                            sourceHandle: "image",
-                            targetHandle: "reference",
-                          },
-                          "reference"
-                        );
-                        setCropMode(false);
-                      }}
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="flex min-h-[120px] flex-1 flex-col items-center justify-center gap-2 bg-neutral-900/85 px-3 text-center">
-                  <span className="text-[11px] leading-snug text-amber-200/90">
-                    Image value is not a loadable URL (often a filename only). Replace the file or re-send the attachment from chat.
-                  </span>
-                  {displayFilename ? (
-                    <span className="max-w-full truncate font-mono text-[10px] text-neutral-500">{displayFilename}</span>
-                  ) : null}
-                </div>
+              <img
+                src={resolvedImageUrl}
+                alt={displayFilename || "Uploaded image"}
+                className={`w-full h-full object-cover ${cropActive ? "z-[999]" : "rounded-[12px]"}`}
+              />
+              {cropActive && (
+                <ImageCropOverlay
+                  imageUrl={resolvedImageUrl}
+                  onCancel={() => setCropMode(false)}
+                  onApply={(cropped, dims) => {
+                    const node = getNode(id);
+                    const baseX =
+                      (node?.position.x ?? 0) +
+                      (typeof node?.style?.width === "number" ? (node!.style!.width as number) : 300) +
+                      80;
+                    const baseY = node?.position.y ?? 0;
+                    const newId = addNode(
+                      "mediaInput",
+                      { x: baseX, y: baseY },
+                      {
+                        mode: "image",
+                        image: cropped,
+                        imageRef: undefined,
+                        dimensions: dims,
+                        filename: displayFilename ? `${displayFilename}-crop.png` : "crop.png",
+                      }
+                    );
+                    addEdgeWithType(
+                      {
+                        source: id,
+                        target: newId,
+                        sourceHandle: "image",
+                        targetHandle: "reference",
+                      },
+                      "reference"
+                    );
+                    setCropMode(false);
+                  }}
+                />
               )}
+            </div>
+          ) : nodeData.imageRef ? (
+            <div className="flex min-h-[120px] flex-1 flex-col items-center justify-center gap-2 bg-neutral-900/85 px-3 text-center">
+              <span className="text-[11px] leading-snug text-neutral-400">Loading image from project…</span>
+            </div>
+          ) : nodeData.image ? (
+            <div className="relative group flex-1 min-h-0 min-w-0 overflow-hidden">
+              <div className="flex min-h-[120px] flex-1 flex-col items-center justify-center gap-2 bg-neutral-900/85 px-3 text-center">
+                <span className="text-[11px] leading-snug text-amber-200/90">
+                  Image value is not a loadable URL (often a filename only). Replace the file or re-send the attachment from chat.
+                </span>
+                {displayFilename ? (
+                  <span className="max-w-full truncate font-mono text-[10px] text-neutral-500">{displayFilename}</span>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </>
@@ -1001,7 +1009,7 @@ export function UploadNode({ id, data, selected }: NodeProps<MediaInputNodeType>
         id={outputHandle.id}
         data-handletype={outputHandle.type}
       />
-    </>
+    </div>
   );
 }
 
