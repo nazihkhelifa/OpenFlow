@@ -24,7 +24,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { useWorkflowStore, WorkflowFile } from "@/store/workflowStore";
+import { useWorkflowStore, type WorkflowFile } from "@/store/workflowStore";
+import type { FlowyCanvasSnapshot } from "@/lib/flowy/flowyCanvasSnapshot";
 import { useShallow } from "zustand/shallow";
 import { useToast } from "@/components/Toast";
 import dynamic from "next/dynamic";
@@ -848,6 +849,25 @@ export function WorkflowCanvas() {
 
     return result;
   }, [captureSnapshot, applyEditOperations, showToast, setCenter, getViewport]);
+
+  const handleRestoreFlowyCanvas = useCallback(
+    async (snapshot: FlowyCanvasSnapshot) => {
+      const { loadWorkflow, workflowName, workflowId, saveDirectoryPath } = useWorkflowStore.getState();
+      const wf: WorkflowFile = {
+        version: 1,
+        id: workflowId ?? undefined,
+        name: workflowName ?? "Workflow",
+        directoryPath: saveDirectoryPath ?? undefined,
+        nodes: snapshot.nodes,
+        edges: snapshot.edges,
+        edgeStyle: snapshot.edgeStyle,
+        groups: snapshot.groups ?? {},
+      };
+      await loadWorkflow(wf, saveDirectoryPath ?? undefined, { keepFlowyAgentOpen: true });
+      showToast("Canvas restored to this thread’s last agent state", "success");
+    },
+    [showToast]
+  );
 
   // Handle node selection from drop menu
   const handleMenuSelect = useCallback(
@@ -1855,6 +1875,7 @@ export function WorkflowCanvas() {
         onAgentSpotlightPositionChange={setAgentSpotlightPosition}
         composerMountEl={flowyComposerMountEl}
         historyRailOpen={flowyHistoryRailOpen}
+        onRestoreFlowyCanvas={handleRestoreFlowyCanvas}
       />
 
       {/* Control panel - renders on right side when a configurable node is selected */}

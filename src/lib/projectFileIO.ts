@@ -2,14 +2,8 @@ import fs from "fs/promises";
 import path from "path";
 import { validateWorkflowPath } from "@/utils/pathValidation";
 
-export function isFileProjectId(id: string): boolean {
-  try {
-    const decoded = decodeURIComponent(id);
-    return decoded.includes("\\") || decoded.includes("/") || /^[A-Za-z]:/.test(decoded);
-  } catch {
-    return false;
-  }
-}
+/** Client-safe helper lives in `project-types.ts` — re-export for server routes that already import from here. */
+export { isFileProjectId } from "@/lib/project-types";
 
 async function loadFirstJsonFileInDir(dirPath: string): Promise<{ filePath: string; workflow: any }> {
   const files = await fs.readdir(dirPath);

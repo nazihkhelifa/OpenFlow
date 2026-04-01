@@ -231,7 +231,11 @@ interface WorkflowStore {
 
   // Save/Load
   saveWorkflow: (name?: string) => void;
-  loadWorkflow: (workflow: WorkflowFile, workflowPath?: string, options?: { preserveSnapshot?: boolean }) => Promise<void>;
+  loadWorkflow: (
+    workflow: WorkflowFile,
+    workflowPath?: string,
+    options?: { preserveSnapshot?: boolean; keepFlowyAgentOpen?: boolean }
+  ) => Promise<void>;
   clearWorkflow: () => void;
 
   // Helpers
@@ -1616,7 +1620,11 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
     URL.revokeObjectURL(url);
   },
 
-  loadWorkflow: async (workflow: WorkflowFile, workflowPath?: string, options?: { preserveSnapshot?: boolean }) => {
+  loadWorkflow: async (
+    workflow: WorkflowFile,
+    workflowPath?: string,
+    options?: { preserveSnapshot?: boolean; keepFlowyAgentOpen?: boolean }
+  ) => {
     // Update nodeIdCounter to avoid ID collisions
     const maxNodeId = workflow.nodes.reduce((max, node) => {
       const match = node.id.match(/-(\d+)$/);
@@ -1853,8 +1861,15 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
       viewedCommentNodeIds: new Set<string>(),
       // Dismiss welcome modal after loading a workflow
       showQuickstart: false,
-      flowyAgentOpen: false,
-      flowyHistoryRailOpen: false,
+      ...(options?.keepFlowyAgentOpen
+        ? {
+            flowyAgentOpen: get().flowyAgentOpen,
+            flowyHistoryRailOpen: get().flowyHistoryRailOpen,
+          }
+        : {
+            flowyAgentOpen: false,
+            flowyHistoryRailOpen: false,
+          }),
     });
 
     // Clear snapshot unless explicitly preserving (e.g., AI workflow generation)

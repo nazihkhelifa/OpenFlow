@@ -24,6 +24,9 @@ export type StoredAppliedPlan = {
   operations: string[];
   executedNodeIds?: string[];
   timestamp: number;
+  /** Canvas state after this plan was applied; used to restore the graph when revisiting a thread. */
+  workflowSnapshot?: unknown;
+  uiCommands?: string[];
 };
 
 export type StoredChatMsg = {

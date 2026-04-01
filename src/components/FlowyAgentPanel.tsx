@@ -44,6 +44,13 @@ import {
   SquarePlus,
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import {
+  captureFlowyCanvasSnapshot,
+  isFlowyCanvasSnapshot,
+  persistFlowySnapshotToBackend,
+  type FlowyCanvasSnapshot,
+} from "@/lib/flowy/flowyCanvasSnapshot";
+import { isFileProjectId } from "@/lib/project-types";
 import { capFlowyChatHistory, type FlowyChatHistoryTurn } from "@/lib/flowy/capFlowyChatHistory";
 import {
   createEmptyFlowySession,
@@ -234,6 +241,8 @@ type AppliedPlanRecord = {
   uiCommands?: string[];
   executedNodeIds?: string[];
   timestamp: number;
+  /** Canvas after this plan was applied — restores graph when switching threads. */
+  workflowSnapshot?: FlowyCanvasSnapshot;
 };
 
 type ChatMsg = {
@@ -251,6 +260,15 @@ type ChatSession = {
   decomposition?: DecompositionInfo | null;
   lastPlanProgress?: FlowyPlanProgressSnapshot | null;
 };
+
+function findLastCanvasSnapshotInSession(session: ChatSession | undefined): FlowyCanvasSnapshot | null {
+  if (!session?.messages?.length) return null;
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const raw = session.messages[i].appliedPlan?.workflowSnapshot;
+    if (raw && isFlowyCanvasSnapshot(raw)) return raw;
+  }
+  return null;
+}
 
 /** Long / multi-line user prompts get a collapsed one-line preview + expand, like the reference chat panel. */
 function isFlowyUserMessageCollapsible(text: string): boolean {
@@ -756,6 +774,7 @@ export function FlowyAgentPanel({
   composerMountEl,
   /** When false, thread list is hidden; use bottom bar toggle (WorkflowCanvas) to show. Default true if omitted. */
   historyRailOpen = true,
+  onRestoreFlowyCanvas,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -771,6 +790,8 @@ export function FlowyAgentPanel({
   /** Where to render the always-visible canvas-bottom chat composer (portal target). */
   composerMountEl?: HTMLElement | null;
   historyRailOpen?: boolean;
+  /** Restores canvas to a snapshot from thread history (last agent-applied state in that thread). */
+  onRestoreFlowyCanvas?: (snapshot: FlowyCanvasSnapshot) => void | Promise<void>;
 }) {
   const { screenToFlowPosition, setCenter, getViewport } = useReactFlow();
   const workflowId = useWorkflowStore((s) => s.workflowId);
@@ -1996,18 +2017,34 @@ export function FlowyAgentPanel({
     );
     const opDescriptions = remappedOps.map((op) => describeOperation(op));
     onApplyEdits(remappedOps);
+    const workflowSnapshot = captureFlowyCanvasSnapshot();
     const planRecord: AppliedPlanRecord = {
       operations: opDescriptions,
       uiCommands: uiLabels.length > 0 ? uiLabels : undefined,
       executedNodeIds: pendingExecuteNodeIds ?? undefined,
       timestamp: Date.now(),
+      workflowSnapshot,
     };
     const sessionId = activeSessionIdRef.current;
     updateSessionMessages(sessionId, (prev) => {
       const msgs = [...prev];
       for (let i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].role === "assistant" && !msgs[i].appliedPlan) {
+          const mid = msgs[i].id;
           msgs[i] = { ...msgs[i], appliedPlan: planRecord };
+          const st = useWorkflowStore.getState();
+          const pid =
+            st.saveDirectoryPath && isFileProjectId(st.saveDirectoryPath)
+              ? st.saveDirectoryPath
+              : st.workflowId && isFileProjectId(st.workflowId)
+                ? st.workflowId
+                : null;
+          persistFlowySnapshotToBackend({
+            projectId: pid,
+            sessionId,
+            messageId: mid,
+            snapshot: workflowSnapshot,
+          });
           return msgs;
         }
       }
@@ -2156,18 +2193,34 @@ export function FlowyAgentPanel({
       uiDismissLabels.length > 0
     ) {
       const opDescriptions = (pendingOperations ?? []).map((op) => describeOperation(op));
+      const workflowSnapshot = captureFlowyCanvasSnapshot();
       const planRecord: AppliedPlanRecord = {
         operations: opDescriptions,
         uiCommands: uiDismissLabels.length > 0 ? uiDismissLabels : undefined,
         executedNodeIds: pendingExecuteNodeIds ?? undefined,
         timestamp: Date.now(),
+        workflowSnapshot,
       };
       const sessionId = activeSessionIdRef.current;
       updateSessionMessages(sessionId, (prev) => {
         const msgs = [...prev];
         for (let i = msgs.length - 1; i >= 0; i--) {
           if (msgs[i].role === "assistant" && !msgs[i].appliedPlan) {
+            const mid = msgs[i].id;
             msgs[i] = { ...msgs[i], appliedPlan: planRecord };
+            const st = useWorkflowStore.getState();
+            const pid =
+              st.saveDirectoryPath && isFileProjectId(st.saveDirectoryPath)
+                ? st.saveDirectoryPath
+                : st.workflowId && isFileProjectId(st.workflowId)
+                  ? st.workflowId
+                  : null;
+            persistFlowySnapshotToBackend({
+              projectId: pid,
+              sessionId,
+              messageId: mid,
+              snapshot: workflowSnapshot,
+            });
             return msgs;
           }
         }
@@ -2295,8 +2348,13 @@ export function FlowyAgentPanel({
       setPendingExecuteNodeIds(null);
       resetExecution();
       setErrorMessage(null);
+      const sess = sessionsRef.current.find((s) => s.id === id);
+      const snap = findLastCanvasSnapshotInSession(sess);
+      if (snap && onRestoreFlowyCanvas) {
+        void Promise.resolve(onRestoreFlowyCanvas(snap)).catch(() => {});
+      }
     },
-    [resetExecution, resetPendingUiCommands, stopAutoRun]
+    [onRestoreFlowyCanvas, resetExecution, resetPendingUiCommands, stopAutoRun]
   );
 
   const handleRenameSession = useCallback(
