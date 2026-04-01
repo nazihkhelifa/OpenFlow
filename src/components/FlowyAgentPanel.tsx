@@ -2839,6 +2839,13 @@ export function FlowyAgentPanel({
                             if (continuationSourceSessionId === s.id) {
                               setContinuationSourceSessionId(null);
                               setFlowyHistoryHighlight(null);
+                              setContinuationBannerExpanded(false);
+                              const emptyDraft = [...sessions]
+                                .filter((x) => x.messages.length === 0)
+                                .sort((a, b) => b.createdAt - a.createdAt)[0];
+                              if (emptyDraft) {
+                                switchToSession(emptyDraft.id);
+                              }
                             } else {
                               setContinuationSourceSessionId(s.id);
                               setContinuationBannerExpanded(true);
@@ -2859,7 +2866,7 @@ export function FlowyAgentPanel({
                           aria-pressed={isContinuationSource}
                           title={
                             isContinuationSource
-                              ? "Click again to stop attaching this thread’s history to your next message"
+                              ? "Click again to detach — opens an empty draft thread if you have one (new threads are created when you send)"
                               : "Select thread — highlights its snapshot nodes on the canvas; history attaches to your next send"
                           }
                         >
